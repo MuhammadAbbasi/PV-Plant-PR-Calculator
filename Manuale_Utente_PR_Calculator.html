@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GET SRL - Manuale Operativo PR Calculator</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0b0f19;
+            --bg-surface: #151c2c;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --border-hover: #c8ad55;
+            --accent-cyan: #00adb5;
+            --accent-green: #10b981;
+            --accent-orange: #c8ad55;
+            --accent-purple: #8b5cf6;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --font-main: 'Inter', sans-serif;
+            --font-head: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: all 0.25s ease;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism Header */
+        header {
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 2px solid var(--border-hover);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .brand-logo {
+            font-family: var(--font-head);
+            font-weight: 800;
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #c8ad55, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-title {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            border-left: 2px solid var(--border-color);
+            padding-left: 1rem;
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            color: #0b0f19;
+            background: var(--accent-orange);
+            border-color: var(--border-hover);
+            box-shadow: 0 4px 15px rgba(200, 173, 85, 0.25);
+        }
+
+        /* Main Container */
+        main {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .tab-content {
+            display: none;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        .tab-content.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Grid Layouts */
+        .hero-section {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 3rem;
+            align-items: flex-start;
+            margin-bottom: 3rem;
+        }
+
+        .image-card {
+            background: var(--bg-surface);
+            border: 2px solid var(--border-hover);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            position: sticky;
+            top: 100px;
+        }
+
+        .image-card img {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .image-title {
+            font-family: var(--font-head);
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 700;
+        }
+
+        /* Interactive Callout List */
+        .callout-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .callout-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .callout-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            background: var(--accent-orange);
+            opacity: 0.5;
+        }
+
+        .callout-card:hover, .callout-card.active {
+            background: rgba(200, 173, 85, 0.08);
+            border-color: var(--border-hover);
+            transform: translateX(5px);
+        }
+
+        .callout-card:hover::before, .callout-card.active::before {
+            opacity: 1;
+            background: var(--accent-orange);
+        }
+
+        .callout-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge {
+            background: var(--accent-orange);
+            color: #0b0f19;
+            font-family: var(--font-head);
+            font-weight: 700;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            box-shadow: 0 0 10px rgba(200, 173, 85, 0.3);
+        }
+
+        .card-title {
+            font-family: var(--font-head);
+            font-size: 1.25rem;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .card-desc {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            padding-left: 3rem;
+        }
+
+        /* Metric Cards */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .metric-card {
+            background: linear-gradient(145deg, #151c2c, #0b0f19);
+            border: 2px solid var(--border-hover);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .metric-card:nth-child(1)::before { background: var(--accent-green); }
+        .metric-card:nth-child(2)::before { background: var(--accent-cyan); }
+        .metric-card:nth-child(3)::before { background: var(--accent-orange); }
+
+        .metric-val {
+            font-family: var(--font-head);
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 1rem 0;
+        }
+
+        .metric-card:nth-child(1) .metric-val { color: var(--accent-green); }
+        .metric-card:nth-child(2) .metric-val { color: var(--accent-cyan); }
+        .metric-card:nth-child(3) .metric-val { color: var(--accent-orange); }
+
+        .metric-lbl {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .metric-sub {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Styled Tables */
+        .table-container {
+            background: var(--bg-surface);
+            border: 2px solid var(--border-hover);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-top: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background: #0b0f19;
+            padding: 1.25rem 1.5rem;
+            font-family: var(--font-head);
+            font-weight: 700;
+            color: var(--accent-orange);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(200, 173, 85, 0.1);
+            color: var(--text-main);
+        }
+
+        /* Accordion FAQ */
+        .accordion {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .accordion-item {
+            background: var(--bg-surface);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .accordion-header {
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-family: var(--font-head);
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .accordion-header:hover {
+            color: var(--accent-orange);
+            background: rgba(200, 173, 85, 0.15);
+        }
+
+        .accordion-content {
+            padding: 0 1.5rem;
+            max-height: 0;
+            overflow: hidden;
+            color: var(--text-muted);
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+
+        .accordion-item.active .accordion-content {
+            padding: 1.5rem;
+            max-height: 500px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Footer */
+        footer {
+            margin-top: 5rem;
+            border-top: 2px solid var(--border-hover);
+            padding: 3rem 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand-container">
+            <div class="brand-logo">GET SRL</div>
+            <div class="brand-title">Mazara 01 - Manuale Operativo PR Calculator</div>
+        </div>
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('panoramica')">🖥️ Panoramica & Aree</button>
+            <button class="tab-btn" onclick="switchTab('parametri')">⚙️ Parametri Calcolo</button>
+            <button class="tab-btn" onclick="switchTab('cruscotto')">📊 Cruscotto Risultati</button>
+            <button class="tab-btn" onclick="switchTab('inverter')">📑 Dettaglio Inverter</button>
+            <button class="tab-btn" onclick="switchTab('faq')">🛠️ Troubleshooting & FAQ</button>
+        </div>
+    </header>
+
+    <main>
+        <!-- TAB 1: PANORAMICA & AREE -->
+        <div id="tab-panoramica" class="tab-content active">
+            <div class="hero-section">
+                <!-- Interactive Callouts -->
+                <div class="callout-list">
+                    <div style="margin-bottom: 1rem;">
+                        <h1 style="font-family: var(--font-head); font-size: 2.2rem; color: #fff; margin-bottom: 0.5rem;">Guida Interattiva al Software</h1>
+                        <p style="color: var(--text-muted);">Clicca sulle schede sottostanti per esplorare le funzionalità corrispondenti ai numeri sull'interfaccia grafica.</p>
+                    </div>
+
+                    <div class="callout-card active" onclick="highlightBadge(1, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #00adb5;">1</div>
+                            <div class="card-title">Intestazione e Brand GET SRL</div>
+                        </div>
+                        <div class="card-desc">Mostra il logo ufficiale aziendale e il titolo del software di automazione per il calcolo delle prestazioni fotovoltaiche dell'impianto Mazara 01.</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(2, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #ff9800;">2</div>
+                            <div class="card-title">Selezione Cartella di Input (Pulsante Browse)</div>
+                        </div>
+                        <div class="card-desc">Apre l'esplora risorse per selezionare la cartella dei dati grezzi SCADA. Selezionando la cartella mensile (es. <code>2026 05</code>), il software attiva automaticamente l'elaborazione ciclica batch per l'intero mese!</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(3, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #e91e63;">3</div>
+                            <div class="card-title">Parametri di Calcolo (Data, PVSyst, Irraggiamento)</div>
+                        </div>
+                        <div class="card-desc">Permette di impostare la data di riferimento, l'obiettivo contrattuale PVSyst (es. 0.897) e la soglia minima di irraggiamento (W/m²) oltre la quale scatta la stima delle perdite.</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(4, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #9c27b0;">4</div>
+                            <div class="card-title">Opzione Ricalcolo Forzato (Modalità Batch)</div>
+                        </div>
+                        <div class="card-desc">Se selezionata, il motore ricalcola da zero ogni singolo giorno sovrascrivendo i file esistenti. Se deselezionata, il software salta istantaneamente i giorni già elaborati.</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(5, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #4caf50;">5</div>
+                            <div class="card-title">Pulsante Principale [ Calculate Performance Ratio ]</div>
+                        </div>
+                        <div class="card-desc">Avvia il motore di calcolo in background: filtra e pulisce i dati numerici, calcola le perdite per indisponibilità, genera i file giornalieri e aggiorna in tempo reale il file Madre mensile tramite OLE/COM.</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(6, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #2196f3;">6</div>
+                            <div class="card-title">Cruscotto Risultati Sintetici</div>
+                        </div>
+                        <div class="card-desc">Mostra in evidenza i tre valori chiave: Media PR dei 36 Inverter (Verde), Performance Ratio Compensato Ufficiale (Ciano) e PR Non Compensato Grezzo (Arancione).</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(7, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #00bcd4;">7</div>
+                            <div class="card-title">Tabella Dettagliata 36 Inverter</div>
+                        </div>
+                        <div class="card-desc">Tabella navigabile con barre di scorrimento che mostra potenza di targa, energia prodotta, stima perdite e Performance Ratio compensato per ciascuna delle 36 macchine.</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(8, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #8bc34a;">8</div>
+                            <div class="card-title">Pulsante Esportazione Excel Multi-Foglio</div>
+                        </div>
+                        <div class="card-desc">Esporta un report Excel autonomo contenente il riepilogo direzionale, l'elenco dei 36 inverter e tutti i 96 quarti d'ora della giornata con i calcoli dettagliati.</div>
+                    </div>
+
+                    <div class="callout-card" onclick="highlightBadge(9, this)">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #673ab7;">9</div>
+                            <div class="card-title">Console Live Log in Tempo Reale</div>
+                        </div>
+                        <div class="card-desc">Visualizza i log operativi del motore Python/COM, notificando caricamenti di file, percorsi UNC e completamento dei calcoli.</div>
+                    </div>
+
+                </div>
+
+                <!-- Visual Image Card -->
+                <div class="image-card">
+                    <div class="image-title">
+                        <span>📸 Snapshot Grafico con Callout Numerate</span>
+                    </div>
+                    <img id="gui-preview" src="./gui_annotated_guide.png" alt="Interfaccia PR Calculator con Numeri">
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: PARAMETRI DI CALCOLO -->
+        <div id="tab-parametri" class="tab-content">
+            <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 1.5rem;">⚙️ Architettura e Parametri di Calcolo</h1>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parametro Input</th>
+                            <th>Formato / Tipo</th>
+                            <th>Significato Tecnico</th>
+                            <th>Impatto sui Calcoli</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">Input Folder Path</td>
+                            <td>Percorso Windows (Locale o UNC)</td>
+                            <td>Cartella contenente i file di log SCADA esportati in formato Excel.</td>
+                            <td>Il motore rileva automaticamente se si tratta di un giorno singolo o di un mese batch per avviare il calcolo sequenziale.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">Date (YYYY-MM-DD)</td>
+                            <td>Stringa ISO 8601</td>
+                            <td>Data di riferimento dell'analisi.</td>
+                            <td>Serve per cercare i file meteo e di regolazione, e per determinare il posizionamento esatto della riga nel file Madre.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">PVSyst Monthly PR</td>
+                            <td>Decimale (es. 0.897)</td>
+                            <td>Performance Ratio teorico atteso da simulazione di progetto PVSyst.</td>
+                            <td>Utilizzato nella formula di stima delle perdite per indisponibilità e curtailment.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">Min Irradiance</td>
+                            <td>Intero (W/m²)</td>
+                            <td>Soglia di irraggiamento solare sul piano del modulo (POA).</td>
+                            <td>Sotto questa soglia (es. 50 W/m²), i calcoli di perdita di energia vengono azzerati per evitare sovrastime notturne o al crepuscolo.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 3: CRUSCOTTO RISULTATI -->
+        <div id="tab-cruscotto" class="tab-content">
+            <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem;">📊 Indicatori Chiave (KPI)</h1>
+            <p style="color: var(--text-muted);">Spiegazione dettagliata dei tre macro-indicatori di performance restituiti dal cruscotto.</p>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-lbl">AVG INVERTER PR</div>
+                    <div class="metric-val">88.5%</div>
+                    <div class="metric-sub">Media aritmetica pura dei 36 inverter compensati. Riflette l'efficienza di conversione DC/AC delle macchine al netto di guasti di rete esterni.</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-lbl">COMPENSATED RAW PR</div>
+                    <div class="metric-val">87.2%</div>
+                    <div class="metric-sub">Performance Ratio di Impianto Contrattuale. Calcolato sommando l'energia immessa in rete alle perdite stimate per indisponibilità e curtailment.</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-lbl">UNCOMPENSATED PR</div>
+                    <div class="metric-val">81.4%</div>
+                    <div class="metric-sub">Performance Ratio Grezzo. Calcolato unicamente sull'energia attiva contata dai misuratori SATAC, senza alcuna compensazione di perdite esterne.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: DETTAGLIO INVERTER -->
+        <div id="tab-inverter" class="tab-content">
+            <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 1.5rem;">📑 Dettaglio e Formule Macchine (TX1, TX2, TX3)</h1>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID Inverter</th>
+                            <th>Trasformatore</th>
+                            <th>Potenza Nominale DC (kW)</th>
+                            <th>Logica Calcolo Perdite (Downtime + Curtailment)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">TX1-INV-1 .. 7, 12</td>
+                            <td>TX1</td>
+                            <td>343.75 kW</td>
+                            <td>Se potenza &le; 0 e POA &gt; soglia &rarr; Stima su media di cabina o formula PVSyst.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">TX1-INV-8 .. 11</td>
+                            <td>TX1</td>
+                            <td>359.375 kW</td>
+                            <td>Idem con targa di stringa maggiorata.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">TX2-INV-1, 4, 5</td>
+                            <td>TX2</td>
+                            <td>328.125 kW</td>
+                            <td>Cabina centrale. Calcolo perdite con limite AC di stringa (320 kW).</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #fff; font-weight: 600;">TX3-INV-1 .. 11</td>
+                            <td>TX3</td>
+                            <td>359.375 kW</td>
+                            <td>Stringhe di cabina Est. Regolazione potenza attiva applicata per curtailment.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 5: FAQ & TROUBLESHOOTING -->
+        <div id="tab-faq" class="tab-content">
+            <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem;">🛠️ Troubleshooting & FAQ per Ingegneri Junior</h1>
+            <p style="color: var(--text-muted);">Soluzioni immediate alle casistiche e anomalie più comuni riscontrate sui file SCADA.</p>
+
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>1. Perché compare l'errore "#DIV/0!" in alcune celle dei file Excel giornalieri?</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        Nelle prime ore della giornata (es. prima delle 06:00), l'irraggiamento solare registrato dai pirometri è pari a zero. Nei file originali non protetti, le divisioni matematiche per l'irraggiamento medio generavano l'errore <code>#DIV/0!</code>. Il nostro software risolve questo problema inserendo automaticamente la funzione Excel <code>=IFERROR(..., 0)</code> su tutte le 96 righe di calcolo!
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>2. Cosa fare in caso di errore "TypeError: '>' not supported between instances of 'str' and 'int'"?</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        In alcune giornate (come il 12 Maggio), il sistema SCADA esporta i numeri con la notazione italiana (es. <code>"0,0,"</code> o con virgola finale). Il software è dotato della funzione <code>clean_float</code> che intercetta questi campi testuali, sostituisce la virgola con il punto decimale e converte il dato in numero float a 64 bit in modo trasparente.
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>3. Come vengono gestiti i percorsi di rete UNC condivisi (es. \\S01\get\...) con Excel COM?</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        Excel OLE richiede rigorosamente il backslash (<code>\</code>). Se si incollano percorsi con slash normali (<code>//S01/...</code>), Windows restituisce l'errore RPC <code>-2147023170</code>. Il software esegue automaticamente la conversione <code>.replace('/', '\')</code> su tutti i percorsi, garantendo il collegamento stabile e veloce in memoria.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div>GET SRL &copy; 2026 - Mazara 01 PV Automation Engine. All rights reserved.</div>
+        <div style="color: var(--border-hover); margin-top: 0.5rem;">Progettato con standard di Visual Excellence ed Ergonomia per Operatori e Ingegneri Junior.</div>
+    </footer>
+
+    <script>
+        function switchTab(tabId) {
+            // Remove active classes
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // Add active classes
+            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+            const targetContent = document.getElementById(`tab-${tabId}`);
+
+            if(targetBtn) targetBtn.classList.add('active');
+            if(targetContent) targetContent.classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function highlightBadge(id, element) {
+            document.querySelectorAll('.callout-card').forEach(card => card.classList.remove('active'));
+            element.classList.add('active');
+            
+            // Add slight animation to preview image
+            const img = document.getElementById('gui-preview');
+            img.style.transform = 'scale(1.02)';
+            setTimeout(() => img.style.transform = 'scale(1)', 200);
+        }
+
+        function toggleAccordion(element) {
+            const item = element.parentElement;
+            item.classList.toggle('active');
+            const arrow = element.querySelector('span:last-child');
+            arrow.textContent = item.classList.contains('active') ? '▲' : '▼';
+        }
+    </script>
+</body>
+</html>

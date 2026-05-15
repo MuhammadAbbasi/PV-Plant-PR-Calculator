@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build and Distribution
+build/
+dist/
+*.spec
+
+# Executables
+*.exe
+
+# Local Data and Results (Specific to this project)
+2026 */
+PR CALCOLO FILE/
+
+# Excel temporary files
+~$*.xlsx
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
