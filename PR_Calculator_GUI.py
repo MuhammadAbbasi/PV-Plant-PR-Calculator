@@ -934,8 +934,8 @@ class PRCalculatorGUI:
             # Permanently eliminate #DIV/0! errors from daily workbook formula columns
             for r in range(15, 111):
                 ws_calc.Cells(r, 7).Formula = f"=IFERROR((D{r}+F{r})/2, 0)"
-                ws_calc.Cells(r, 8).Formula = f"=IFERROR(IF(AVERAGE(C{r},E{r})>$BN$7,AVERAGE(C{r},E{r}),0), 0)"
-                ws_calc.Cells(r, 9).Formula = f"=IFERROR(IF(AND(D{r}=0,F{r}=0),0,IF(H{r}>$BN$6,MAX(D{r},F{r}),G{r})), 0)"
+                ws_calc.Cells(r, 8).Formula = f"=IFERROR(IF(AVERAGE(C{r},E{r})>$BA$7,AVERAGE(C{r},E{r}),0), 0)"
+                ws_calc.Cells(r, 9).Formula = f"=IFERROR(IF(AND(D{r}=0,F{r}=0),0,IF(H{r}>$BA$6,MAX(D{r},F{r}),G{r})), 0)"
                 ws_calc.Cells(r, 10).Formula = f"=IFERROR(IF(AND(D{r}>0,F{r}>0),ABS(D{r}-F{r})/AVERAGE(D{r},F{r}),0), 0)"
                 ws_calc.Cells(r, 13).Formula = f"=IFERROR((L{r}-K{r})*1000, 0)"
                 
@@ -965,15 +965,17 @@ class PRCalculatorGUI:
             ws_calc.Cells(1, 1).Value = "PR CALCULATION"
             ws_calc.Cells(2, 1).Value = f"{day_val:02d} {italian_months_full_upper[month_val]} {year_val}"
             ws_calc.Cells(8, 1).Value = "NOMINAL VALUES"
-            ws_calc.Cells(4, 66).Value = float(pvsyst_pr)
-            ws_calc.Cells(7, 66).Value = float(threshold)
-            ws_calc.Cells(2, 71).Value = f"{day_val} {english_months_full[month_val]} {year_val} PR Calculation"
-            ws_calc.Cells(8, 75).Value = float(uncomp_pr)
             
-            # Correct columns AA, AB, AC headers on Row 14
-            ws_calc.Cells(14, 27).Value = "Energy Loss for TX1\nkW/H"
-            ws_calc.Cells(14, 28).Value = "Inverter status TX2-INV-1"
-            ws_calc.Cells(14, 29).Value = "Inverter status TX2-INV-2"
+            # Write nominal parameters in Column BA (53)
+            ws_calc.Cells(4, 53).Value = float(pvsyst_pr) / 100.0  # BA4 expects decimal (e.g. 0.897)
+            ws_calc.Cells(6, 53).Value = 0.03                     # BA6 is irradiance acceptance limit ratio
+            ws_calc.Cells(7, 53).Value = float(threshold)          # BA7 is irradiance minimum value (e.g. 50)
+            
+            # Write English PR calculation header in Column BD (56) Row 2
+            ws_calc.Cells(2, 56).Value = f"{day_val} {english_months_full[month_val]} {year_val} PR Calculation"
+            
+            # Write PR from SCADA in Column BH (60) Row 8 (BH8 expects percentage e.g. 81.743)
+            ws_calc.Cells(8, 60).Value = float(uncomp_pr)
             print(f"[{date_str}] DEBUG: Aggiornamento tabelle laterali completato. Salvataggio cartella di lavoro in corso...")
             
             try:
@@ -1191,7 +1193,7 @@ class PRCalculatorGUI:
                         if col == 2: addr = "$I$111"
                         elif col == 3: addr = "$M$111"
                         elif col == 4: addr = "$BA$5*100"
-                        elif col == 5: addr = "$BN$5*100"
+                        elif col == 5: addr = "$BH$8"
                         elif col == 6: addr = "$AA$111"
                         elif col == 7: addr = "$AN$111"
                         elif col == 8: addr = "$BA$111"

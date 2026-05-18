@@ -14,6 +14,7 @@ dist/
 # Local Data and Results (Specific to this project)
 2026 */
 PR CALCOLO FILE/
+scratch/
 
 # Excel temporary files
 ~$*.xlsx
