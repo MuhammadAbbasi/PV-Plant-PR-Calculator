@@ -15,6 +15,7 @@ dist/
 2026 */
 PR CALCOLO FILE/
 scratch/
+.old_codes/
 
 # Excel temporary files
 ~$*.xlsx
