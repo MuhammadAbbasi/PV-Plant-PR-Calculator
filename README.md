@@ -1,4 +1,4 @@
-# PV Plant Performance Ratio (PR) Calculator - Mazara 01
+# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v5.0)
 
 A professional, high-performance Python-based tool designed for the **GET S.R.L.** Mazara 01 photovoltaic plant. This application automates the calculation of the Performance Ratio (PR), providing both raw and compensated metrics by processing SCADA data and weather station logs.
 
@@ -11,20 +11,17 @@ A professional, high-performance Python-based tool designed for the **GET S.R.L.
     - **Curtailment Losses**: Energy lost due to grid-imposed power limits.
     - **Downtime Losses**: Energy lost during inverter or transformer outages.
 - **Batch Processing Mode**: Quickly process an entire month's worth of data by selecting a parent folder containing daily subdirectories.
-- **Excel Automation**: Utilizes Excel COM (ActiveX) for seamless report generation, ensuring that complex formulas and templates remain uncorrupted.
-- **Mother-Child File Syncing**: Automatically updates monthly "Mother" files with data from daily "Child" recalculation files.
-- **Modern Dark Mode Interface**: A premium, obsidian-themed GUI built with Tkinter, featuring real-time logging and performance metrics.
+- **Excel Automation via ActiveX**: Utilizes Excel COM for seamless report generation, avoiding `openpyxl` table corruption and ensuring that complex formulas and styles remain uncorrupted.
+- **Mother-Child File Syncing (v5.0 aligned)**: Automatically links monthly "Mother" files with data from daily "Child" recalculation files via dynamic Excel formulas.
+- **Obsidian Dark Mode Interface**: A premium, luxury-themed GUI built with Tkinter, featuring real-time logging, interactive controls, and performance metrics.
 
 ## Prerequisites
 
-To run the source code, you need Python 3.8+ and the following dependencies:
+To run the source code, you need Windows (for Excel COM integration), Microsoft Excel installed, and Python 3.8+ with the following libraries:
 
-- **Windows OS**: Required for Excel COM integration.
-- **Microsoft Excel**: Installed on the machine.
-- **Python Libraries**:
-  ```bash
-  pip install pandas numpy openpyxl pywin32 Pillow
-  ```
+```bash
+pip install pandas numpy openpyxl pywin32 Pillow
+```
 
 ## Installation & Setup
 
@@ -37,7 +34,7 @@ To run the source code, you need Python 3.8+ and the following dependencies:
 2. **Template Configuration**:
    Ensure the `original_format/` directory contains the required Excel templates:
    - `00 PR_recalculation_*.xlsx` (Monthly Mother file)
-   - `PR_recalculation_*.xlsx` (Daily template)
+   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 5.0 aligned*)
 
 3. **Assets**:
    Place company logos in the `assets/` folder (`logo.png`, `logo.ico`).
@@ -45,22 +42,28 @@ To run the source code, you need Python 3.8+ and the following dependencies:
 ## How to Use
 
 1. **Launch the Application**:
-   Run the script using Python:
+   Run the GUI using Python:
    ```bash
    python PR_Calculator_GUI.py
+   ```
+   Or run the compiled executable:
+   ```bash
+   "PR Calculator v5.exe"
    ```
 
 2. **Single Day Processing**:
    - Select the folder containing the SCADA files for the specific day.
-   - Enter the target date (YYYY-MM-DD).
+   - Enter the target date (`YYYY-MM-DD`).
    - Click **"Calcola Performance Ratio"**.
 
 3. **Batch Processing (Monthly)**:
-   - Select a parent folder containing subfolders named by day (e.g., `01`, `02`, `03`...).
-   - Check **"Ricalcola forzatamente i giorni già elaborati"** if you wish to overwrite existing reports.
-   - The tool will iterate through every day, generate individual reports, and sync them to the monthly Mother file.
+   - Select a parent folder containing subfolders named by day (e.g., `01`, `02`, `03` ... `31`).
+   - Check **"Ricalcola forzatamente i giorni già elaborati"** to overwrite existing daily workbooks.
+   - The tool will iterate through every day, generate individual child workbooks, and sync them to the monthly Mother file.
 
-## 📊 Excel Templates & Formatting Requirements
+---
+
+## 📊 Excel Templates & Formatting Requirements (v5.0)
 
 The tool automates calculations by reading from and writing to specific sheets, columns, and cells within two template types. Below are the formatting requirements to ensure compatibility:
 
@@ -79,17 +82,27 @@ Must contain at least two worksheets with the following exact names and structur
         *   Column `E` & `F`: POA3 (W/m²) and POA3 (kWh/m²)
         *   Column `K`: Meter Previous Reading (SATAC)
         *   Column `L`: Meter Current Reading (SATAC)
-        *   Column `N`: Active Power Regulation Limit Ratio (expressed as a decimal, e.g., 0.876)
+        *   Column `N`: Active Power Regulation Limit Ratio (expressed as a decimal, e.g., `0.876`)
     *   **Formula Cells (Rows 15 to 110)**: Autopopulated with exact Excel formulas to prevent `#DIV/0!` errors:
         *   Column `G` (POA Avg): `=IFERROR((D{r}+F{r})/2, 0)`
-        *   Column `H` (POA threshold check): `=IFERROR(IF(AVERAGE(C{r},E{r})>$BN$7,AVERAGE(C{r},E{r}),0), 0)`
-        *   Column `I` (POA max check): `=IFERROR(IF(AND(D{r}=0,F{r}=0),0,IF(H{r}>$BN$6,MAX(D{r},F{r}),G{r})), 0)`
+        *   Column `H` (POA threshold check): `=IFERROR(IF(AVERAGE(C{r},E{r})>$BA$7,AVERAGE(C{r},E{r}),0), 0)`
+        *   Column `I` (POA max check): `=IFERROR(IF(AND(D{r}=0,F{r}=0),0,IF(H{r}>$BA$6,MAX(D{r},F{r}),G{r})), 0)`
         *   Column `J` (POA difference ratio): `=IFERROR(IF(AND(D{r}>0,F{r}>0),ABS(D{r}-F{r})/AVERAGE(D{r},F{r}),0), 0)`
         *   Column `M` (Active Energy production): `=IFERROR((L{r}-K{r})*1000, 0)`
-    *   **Key Cells**:
-        *   `BN4` (Column `BN`): Monthly PVSyst target PR (written from GUI)
-        *   `BN7` (Column `BN`): Minimum Irradiance threshold (written from GUI)
-        *   `BY8` (Column `BY`): Calculated Uncompensated PR value (written from GUI)
+    *   **Nominal Parameters (Column BA)**:
+        *   `BA4`: PVSyst PR Target as decimal (e.g., `0.897` written from GUI)
+        *   `BA6`: Irradiance acceptance limit ratio (e.g., `0.03`)
+        *   `BA7`: Minimum Irradiance threshold (e.g., `50` written from GUI)
+    *   **Shifted Parameters Table (Columns BD & BH)**:
+        *   `BD2`: English PR title header (e.g., `"1 May 2026 PR Calculation"`)
+        *   `BH3`: Total values count (`=+BA3`)
+        *   `BH4`: Total values with POA > 0 (`=COUNTIF(H15:H110,">0")`)
+        *   `BH5`: PVSyst PR for current month in % (`=+BA4*100`)
+        *   `BH6`: RAW PR in % (`=+BA5*100`)
+        *   `BH7`: Average of each PR in % (`=AVERAGE(...)*100`)
+        *   `BH8`: **PR from SCADA (Uncompensated PR % written from GUI, e.g., `37.529`)**
+        *   `BH9`: Irradiance acceptance limit ratio (`=+BA6*100`)
+        *   `BH10`: Minimum Irradiance threshold (`=+BA7`)
 
 *   **`Inverter_data` Sheet**:
     *   **Rows 15 to 110**:
@@ -102,31 +115,32 @@ Must contain at least two worksheets with the following exact names and structur
 Must contain a **`PR_Calc`** sheet structured as follows:
 *   **Column `A`**: Date sequence for the entire month (Rows 5 to `5 + num_days - 1`).
 *   **Columns `D` to `AR` (Rows 5 to `5 + num_days - 1`)**: Auto-linked formulas referencing the corresponding child workbook:
-    *   Column `D` (Daily PR): `='[ChildPath]PR_Calc'!$BA$5*100`
-    *   Column `E` (Total PR): `='[ChildPath]PR_Calc'!$BN$5*100`
+    *   Column `D` (PR Daily): `='[ChildPath]PR_Calc'!$BA$5*100` (or `='[ChildPath]PR_Calc'!$BH$6`)
+    *   Column `E` (PR SCADA): **`='[ChildPath]PR_Calc'!$BH$8`** (Linked to daily SCADA PR in Column BH)
     *   Column `F`, `G`, `H` (Energy Loss): Linked to daily file cells `$AA$111`, `$AN$111`, `$BA$111` respectively.
     *   Columns `I` to `T` (TX1 Inverters): Linked to child file row 111, columns `O` to `Z` (`O$111` to `Z$111`).
     *   Columns `U` to `AF` (TX2 Inverters): Linked to child file row 111, columns `AB` to `AM` (`AB$111` to `AM$111`).
     *   Columns `AG` to `AR` (TX3 Inverters): Linked to child file row 111, columns `AO` to `AZ` (`AO$111` to `AZ$111`).
-*   **Summary Row**: Dynamically repositioned at Row `5 + num_days` containing the `=AVERAGE(D5:D{last_day_row})` formula in columns `D` and `E`.
+*   **Summary Row**: Dynamically positioned at Row `5 + num_days` containing the `=AVERAGE(D5:D{last_day_row})` formula in columns `D` and `E`.
 
-## Calculation Logic
+---
 
-The tool follows a rigorous technical methodology:
-- **Irradiance Thresholding**: Only calculates PR when average POA is above a configurable threshold (default 50 W/m²).
-- **Compensated PR**: 
-  $PR_{comp} = \frac{E_{gen} + E_{loss\_dt} + E_{loss\_curt}}{P_{nom} \times \frac{H}{G_{STC}}}$
-- **Energy Meter Delta**: Calculates real energy production from cumulative active energy readings (SATAC meter).
+## 🛠 Compilation (Building the Executable)
 
-## Documentation
+To bundle the application into a standalone Windows executable:
 
-For a detailed walkthrough, refer to the included [Manuale_Utente_PR_Calculator.html](Manuale_Utente_PR_Calculator.html).
+```powershell
+python scratch/build_exe.py
+```
+
+This script will verify your PyInstaller installation, build the executable using **`PR Calculator v5.spec`**, and copy the standalone **`PR Calculator v5.exe`** to the main folder.
+
+---
 
 ## Developed By
 
-**Muhammad Abbasi**
-
-Data Scientist and Automation Engineer - GET S.R.L.
+**Muhammad Abbasi**  
+*Data Scientist and Automation Engineer - GET S.R.L.*
 
 ---
 *Note: This tool is specifically tailored for the Mazara 01 plant configuration but can be adapted for other PV infrastructures.*
