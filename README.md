@@ -75,7 +75,8 @@ For a detailed walkthrough, refer to the included [Manuale_Utente_PR_Calculator.
 ## 🤝 Developed By
 
 **Muhammad Abbasi**
-Coding & Logic for GET S.R.L.
+
+Data Scientist and Automation Engineer - GET S.R.L.
 
 ---
 *Note: This tool is specifically tailored for the Mazara 01 plant configuration but can be adapted for other PV infrastructures.*
