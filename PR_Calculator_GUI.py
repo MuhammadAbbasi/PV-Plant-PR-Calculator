@@ -74,14 +74,14 @@ class RedirectText:
 class PRCalculatorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Calcolatore Performance Ratio (PR) Fotovoltaico Mazara 01")
+        self.root.title("Calcolatore Performance Ratio (PR) Fotovoltaico Mazara 01 - v5.0")
         self.root.geometry("1020x940")
         self.root.configure(bg="#0b0f19")
         
         # Ensure Windows taskbar and task manager correctly display the custom GET logo icon
         try:
             import ctypes
-            myappid = 'get.srl.prcalculator.v3'
+            myappid = 'get.srl.prcalculator.v5'
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
             pass
