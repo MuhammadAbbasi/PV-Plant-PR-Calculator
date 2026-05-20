@@ -1,4 +1,4 @@
-# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v5.0)
+# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v6.0)
 
 A professional, high-performance Python-based tool designed for the **GET S.R.L.** Mazara 01 photovoltaic plant. This application automates the calculation of the Performance Ratio (PR), providing both raw and compensated metrics by processing SCADA data and weather station logs.
 
@@ -10,9 +10,9 @@ A professional, high-performance Python-based tool designed for the **GET S.R.L.
 - **Compensated PR Analysis**: Intelligent logic to account for:
     - **Curtailment Losses**: Energy lost due to grid-imposed power limits.
     - **Downtime Losses**: Energy lost during inverter or transformer outages.
-- **Batch Processing Mode**: Quickly process an entire month's worth of data by selecting a parent folder containing daily subdirectories.
+- **Batch Processing Mode (v6.0 Optimized)**: Processes a month's data in a single run, utilizing a high-speed single-pass sync that minimizes Excel startup overhead.
 - **Excel Automation via ActiveX**: Utilizes Excel COM for seamless report generation, avoiding `openpyxl` table corruption and ensuring that complex formulas and styles remain uncorrupted.
-- **Mother-Child File Syncing (v5.0 aligned)**: Automatically links monthly "Mother" files with data from daily "Child" recalculation files via dynamic Excel formulas.
+- **Mother-Child File Syncing (v6.0 Self-Healing)**: Automatically scans and links monthly "Mother" files with data from daily "Child" recalculation files via dynamic Excel formulas. If the file is locked, it reports descriptive errors to the user instead of failing silently.
 - **Obsidian Dark Mode Interface**: A premium, luxury-themed GUI built with Tkinter, featuring real-time logging, interactive controls, and performance metrics.
 
 ## Prerequisites
@@ -34,7 +34,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 2. **Template Configuration**:
    Ensure the `original_format/` directory contains the required Excel templates:
    - `00 PR_recalculation_*.xlsx` (Monthly Mother file)
-   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 5.0 aligned*)
+   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 6.0 aligned*)
 
 3. **Assets**:
    Place company logos in the `assets/` folder (`logo.png`, `logo.ico`).
@@ -48,7 +48,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
    ```
    Or run the compiled executable:
    ```bash
-   "PR Calculator v5.exe"
+   "PR Calculator v6.exe"
    ```
 
 2. **Single Day Processing**:
@@ -63,7 +63,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 
 ---
 
-## 📊 Excel Templates & Formatting Requirements (v5.0)
+## 📊 Excel Templates & Formatting Requirements (v6.0)
 
 The tool automates calculations by reading from and writing to specific sheets, columns, and cells within two template types. Below are the formatting requirements to ensure compatibility:
 
@@ -133,7 +133,7 @@ To bundle the application into a standalone Windows executable:
 python scratch/build_exe.py
 ```
 
-This script will verify your PyInstaller installation, build the executable using **`PR Calculator v5.spec`**, and copy the standalone **`PR Calculator v5.exe`** to the main folder.
+This script will verify your PyInstaller installation, build the executable using **`PR Calculator v6.spec`**, and copy the standalone **`PR Calculator v6.exe`** to the main folder.
 
 ---
 

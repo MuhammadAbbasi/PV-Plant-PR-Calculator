@@ -74,14 +74,14 @@ class RedirectText:
 class PRCalculatorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Calcolatore Performance Ratio (PR) Fotovoltaico Mazara 01 - v5.0")
+        self.root.title("Calcolatore Performance Ratio (PR) Fotovoltaico Mazara 01 - v6.0")
         self.root.geometry("1020x940")
         self.root.configure(bg="#0b0f19")
         
         # Ensure Windows taskbar and task manager correctly display the custom GET logo icon
         try:
             import ctypes
-            myappid = 'get.srl.prcalculator.v5'
+            myappid = 'get.srl.prcalculator.v6'
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
             pass
@@ -526,7 +526,7 @@ class PRCalculatorGUI:
                         return file_path
         return None
 
-    def calculate_single_day(self, folder, date_str, pvsyst_pr, threshold, calcolo_folder=None):
+    def calculate_single_day(self, folder, date_str, pvsyst_pr, threshold, calcolo_folder=None, skip_mother_update=False):
         import shutil
         import openpyxl
         import datetime
@@ -997,198 +997,116 @@ class PRCalculatorGUI:
             pass
             
         # Update mother file
+        if not skip_mother_update:
+            self.sync_mother_file(calcolo_folder, year_val, month_val)
+            
+        return df_result, calc_results
+
+    def sync_mother_file(self, calcolo_folder, year_val, month_val):
+        import calendar
+        import openpyxl
+        import re
+        import shutil
+        import glob
+        
+        month_abbrs = {
+            1: "gen", 2: "feb", 3: "mar", 4: "apr", 5: "mag", 6: "giu",
+            7: "lug", 8: "ago", 9: "set", 10: "ott", 11: "nov", 12: "dic"
+        }
+        italian_months_4 = {
+            1: "GENN", 2: "FEBB", 3: "MARZ", 4: "APRL", 5: "MAGG", 6: "GIUG",
+            7: "LUGL", 8: "AGOS", 9: "SETT", 10: "OTTO", 11: "NOVE", 12: "DICE"
+        }
+        
+        month_name = month_abbrs[month_val]
         expected_mother_filename = f"00 PR_recalculation_{italian_months_4[month_val]}.xlsx"
         mother_path = os.path.join(calcolo_folder, expected_mother_filename)
         
-        # 1. Initialize Mother file if it does not exist yet!
+        initialized_new = False
         if not os.path.exists(mother_path):
+            original_format_dir = get_resource_path("original_format")
             orig_mothers = glob.glob(os.path.join(original_format_dir, "00 PR_recalculation_*.xlsx"))
             if orig_mothers:
                 orig_mother_path = orig_mothers[0]
-                print(f"[{date_str}] Copia e inizializzazione del template Madre via Excel COM: '{os.path.basename(orig_mother_path)}' -> '{expected_mother_filename}'")
+                print(f"Copia e inizializzazione del template Madre: '{os.path.basename(orig_mother_path)}' -> '{expected_mother_filename}'")
                 shutil.copy(orig_mother_path, mother_path)
-                
-                excel = None
-                try:
-                    import win32com.client
-                    import calendar
-                    import re
-                    
-                    excel = get_excel_app()
-                    abs_mother_path = os.path.abspath(mother_path).replace('/', '\\')
-                    wb_mother = excel.Workbooks.Open(abs_mother_path, UpdateLinks=0)
-                    
-                    try:
-                        excel.Calculation = -4135  # xlCalculationManual
-                    except Exception:
-                        pass
-                        
-                    ws_mother = wb_mother.Sheets('PR_Calc')
-                    
-                    num_days = calendar.monthrange(year_val, month_val)[1]
-                    target_summary_row = 5 + num_days
-                    
-                    # Dynamically format and adjust summary row to match current month's days!
-                    current_summary_row = None
-                    for r in range(30, 42):
-                        f_text = ws_mother.Cells(r, 4).Formula
-                        if isinstance(f_text, str) and 'AVERAGE' in f_text.upper():
-                            current_summary_row = r
-                            break
-                            
-                    if current_summary_row is not None:
-                        if current_summary_row < target_summary_row:
-                            rows_to_insert = target_summary_row - current_summary_row
-                            for _ in range(rows_to_insert):
-                                ws_mother.Rows(current_summary_row).Insert()
-                                ws_mother.Rows(current_summary_row - 1).Copy(ws_mother.Rows(current_summary_row))
-                                excel.CutCopyMode = False
-                                for c in range(1, 45):
-                                    ws_mother.Cells(current_summary_row, c).Value = None
-                        elif current_summary_row > target_summary_row:
-                            rows_to_delete = current_summary_row - target_summary_row
-                            del_start = target_summary_row
-                            del_end = current_summary_row - 1
-                            ws_mother.Rows(f"{del_start}:{del_end}").Delete()
-                            
-                        ws_mother.Cells(target_summary_row, 4).Formula = f"=AVERAGE(D5:D{target_summary_row-1})"
-                        ws_mother.Cells(target_summary_row, 5).Formula = f"=AVERAGE(E5:E{target_summary_row-1})"
-                            
-                    # Change links natively via Excel to avoid openpyxl corruption
-                    links = wb_mother.LinkSources(1) # xlExcelLinks
-                    if links:
-                        for link in links:
-                            match = re.search(r"PR_recalculation_(\d+)_", link, re.IGNORECASE)
-                            if match:
-                                day_num = int(match.group(1))
-                                if day_num <= num_days:
-                                    chk_daily_filename = f"PR_recalculation_{day_num:02d}_{month_name}.xlsx"
-                                    chk_daily_path = os.path.abspath(os.path.join(calcolo_folder, chk_daily_filename)).replace('/', '\\')
-                                    wb_mother.ChangeLink(Name=link, NewName=chk_daily_path, Type=1)
-                                    
-                    # Rows 5 to 5 + num_days - 1 represent days 1 to num_days
-                    for r in range(5, 5 + num_days):
-                        day_num = r - 4
-                        ws_mother.Cells(r, 1).Value = f"{year_val}-{month_val:02d}-{day_num:02d}"
-                        
-                        chk_daily_filename = f"PR_recalculation_{day_num:02d}_{month_name}.xlsx"
-                        chk_daily_path = os.path.join(calcolo_folder, chk_daily_filename)
-                        if not os.path.exists(chk_daily_path):
-                            pass
-                        else:
-                            # Ensure correct cell references for PR Total, Energy losses, and all 36 inverters
-                            for col in range(2, 45):
-                                f_text = ws_mother.Cells(r, col).Formula
-                                if isinstance(f_text, str) and '!' in f_text:
-                                    prefix, addr = f_text.split('!', 1)
-                                    if col == 4: addr = "$BA$5*100"
-                                    elif col == 6: addr = "$AA$111"
-                                    elif col == 7: addr = "$AN$111"
-                                    elif col == 8: addr = "$BA$111"
-                                    ws_mother.Cells(r, col).Formula = f"{prefix}!{addr}"
-                                    
-                                    if col == 4:
-                                        ws_mother.Cells(r, 5).Formula = f"{prefix}!$BN$5*100"
-                                    
-                    try:
-                        excel.Calculation = -4105  # xlCalculationAutomatic
-                        excel.CalculateBeforeSave = True
-                        wb_mother.Calculate()
-                    except Exception:
-                        pass
-                        
-                    wb_mother.Save()
-                    wb_mother.Close(SaveChanges=True)
-                    print(f"[{date_str}] File Madre '{expected_mother_filename}' inizializzato perfettamente con {num_days} giorni via Excel COM.")
-                except Exception as ex:
-                    print(f"[{date_str}] Errore durante l'inizializzazione del file Madre via Excel COM: {ex}")
-                    if 'wb_mother' in locals() and wb_mother:
-                        wb_mother.Close(SaveChanges=False)
-                finally:
-                    pass
+                initialized_new = True
             else:
-                print(f"[{date_str}] Avvertenza: Nessun template Madre trovato nella cartella original_format")
-                
-        # 2. Update the row of the current day with the new PR SCADA static value!
-        if os.path.exists(mother_path):
-            excel = None
+                raise FileNotFoundError(f"Template Madre originale non trovato in original_format per inizializzare '{expected_mother_filename}'!")
+
+        excel = None
+        wb_mother = None
+        try:
+            excel = get_excel_app()
+            abs_mother_path = os.path.abspath(mother_path).replace('/', '\\')
+            print(f"DEBUG: Apertura file Madre: {abs_mother_path}")
+            wb_mother = excel.Workbooks.Open(abs_mother_path, UpdateLinks=0)
+            
             try:
-                import win32com.client
-                import calendar
-                import re
+                excel.Calculation = -4135  # xlCalculationManual
+            except Exception:
+                pass
                 
-                excel = get_excel_app()
-                abs_mother_path2 = os.path.abspath(mother_path).replace('/', '\\')
-                wb_mother = excel.Workbooks.Open(abs_mother_path2, UpdateLinks=0)
+            ws_mother = wb_mother.Sheets('PR_Calc')
+            num_days = calendar.monthrange(year_val, month_val)[1]
+            target_summary_row = 5 + num_days
+            
+            # Dynamically format and adjust summary row in existing Mother file if needed!
+            current_summary_row = None
+            for r in range(30, 42):
+                f_text = ws_mother.Cells(r, 4).Formula
+                if isinstance(f_text, str) and 'AVERAGE' in f_text.upper():
+                    current_summary_row = r
+                    break
+                    
+            if current_summary_row is not None:
+                if current_summary_row < target_summary_row:
+                    rows_to_insert = target_summary_row - current_summary_row
+                    for _ in range(rows_to_insert):
+                        ws_mother.Rows(current_summary_row).Insert()
+                        ws_mother.Rows(current_summary_row - 1).Copy(ws_mother.Rows(current_summary_row))
+                        excel.CutCopyMode = False
+                        for c in range(1, 45):
+                            ws_mother.Cells(current_summary_row, c).Value = None
+                elif current_summary_row > target_summary_row:
+                    rows_to_delete = current_summary_row - target_summary_row
+                    del_start = target_summary_row
+                    del_end = current_summary_row - 1
+                    ws_mother.Rows(f"{del_start}:{del_end}").Delete()
+                    
+                ws_mother.Cells(target_summary_row, 4).Formula = f"=AVERAGE(D5:D{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 5).Formula = f"=AVERAGE(E5:E{target_summary_row-1})"
+            
+            # Change links natively via Excel to avoid openpyxl corruption if initialized new
+            if initialized_new:
+                links = wb_mother.LinkSources(1) # xlExcelLinks
+                if links:
+                    for link in links:
+                        match = re.search(r"PR_recalculation_(\d+)_", link, re.IGNORECASE)
+                        if match:
+                            day_num = int(match.group(1))
+                            if day_num <= num_days:
+                                chk_daily_filename = f"PR_recalculation_{day_num:02d}_{month_name}.xlsx"
+                                chk_daily_path = os.path.abspath(os.path.join(calcolo_folder, chk_daily_filename)).replace('/', '\\')
+                                wb_mother.ChangeLink(Name=link, NewName=chk_daily_path, Type=1)
+
+            # Ensure all day rows have correct literal dates for this month
+            for r in range(5, 5 + num_days):
+                day_num = r - 4
+                ws_mother.Cells(r, 1).Value = f"{year_val}-{month_val:02d}-{day_num:02d}"
                 
-                try:
-                    excel.Calculation = -4135  # xlCalculationManual
-                except Exception:
-                    pass
-                    
-                ws_mother = wb_mother.Sheets('PR_Calc')
+            daily_dir = os.path.abspath(calcolo_folder).replace('/', '\\')
+            
+            sync_count = 0
+            for day_num in range(1, num_days + 1):
+                chk_daily_filename = f"PR_recalculation_{day_num:02d}_{month_name}.xlsx"
+                chk_daily_path = os.path.join(calcolo_folder, chk_daily_filename)
                 
-                num_days = calendar.monthrange(year_val, month_val)[1]
-                target_summary_row = 5 + num_days
-                
-                # Dynamically format and adjust summary row in existing Mother file if needed!
-                current_summary_row = None
-                for r in range(30, 42):
-                    f_text = ws_mother.Cells(r, 4).Formula
-                    if isinstance(f_text, str) and 'AVERAGE' in f_text.upper():
-                        current_summary_row = r
-                        break
-                        
-                if current_summary_row is not None:
-                    if current_summary_row < target_summary_row:
-                        rows_to_insert = target_summary_row - current_summary_row
-                        for _ in range(rows_to_insert):
-                            ws_mother.Rows(current_summary_row).Insert()
-                            ws_mother.Rows(current_summary_row - 1).Copy(ws_mother.Rows(current_summary_row))
-                            excel.CutCopyMode = False
-                            for c in range(1, 45):
-                                ws_mother.Cells(current_summary_row, c).Value = None
-                    elif current_summary_row > target_summary_row:
-                        rows_to_delete = current_summary_row - target_summary_row
-                        del_start = target_summary_row
-                        del_end = current_summary_row - 1
-                        ws_mother.Rows(f"{del_start}:{del_end}").Delete()
-                        
-                    ws_mother.Cells(target_summary_row, 4).Formula = f"=AVERAGE(D5:D{target_summary_row-1})"
-                    ws_mother.Cells(target_summary_row, 5).Formula = f"=AVERAGE(E5:E{target_summary_row-1})"
-                        
-                # Ensure all day rows have correct literal dates for this month
-                for r in range(5, 5 + num_days):
-                    day_num = r - 4
-                    ws_mother.Cells(r, 1).Value = f"{year_val}-{month_val:02d}-{day_num:02d}"
+                if os.path.exists(chk_daily_path):
+                    r = 5 + day_num - 1
+                    prefix = f"='{daily_dir}\\[{chk_daily_filename}]PR_Calc'"
                     
-                match_row = None
-                dt_comp = datetime.datetime(year_val, month_val, day_val, 0, 0)
-                
-                for r in range(5, 5 + num_days):
-                    cell_val = ws_mother.Cells(r, 1).Value
-                    if cell_val:
-                        try:
-                            if hasattr(cell_val, 'date'):
-                                cell_date = cell_val.date()
-                            else:
-                                cell_date = datetime.datetime.strptime(str(cell_val)[:10], "%Y-%m-%d").date()
-                            if cell_date == dt_comp.date():
-                                match_row = r
-                                break
-                        except Exception:
-                            continue
-                            
-                if match_row:
-                    print(f"[{date_str}] Scrittura valore statico PR SCADA e ripristino formule per la riga {match_row} nel file Madre via Excel COM.")
-                    
-                    # ws_mother.Cells(match_row, 5).Value = float(uncomp_pr)
-                    
-                    daily_filename = f"PR_recalculation_{day_val:02d}_{month_name}.xlsx"
-                    daily_dir = os.path.abspath(calcolo_folder).replace('/', '\\')
-                    prefix = f"='{daily_dir}\\[{daily_filename}]PR_Calc'"
-                    
-                    import openpyxl
+                    formulas_to_write = {}
                     for col in range(2, 45):
                         if col == 2: addr = "$I$111"
                         elif col == 3: addr = "$M$111"
@@ -1207,31 +1125,40 @@ class PRCalculatorGUI:
                             daily_col_letter = openpyxl.utils.get_column_letter(col + 8)
                             addr = f"{daily_col_letter}$111"
                             
-                        ws_mother.Cells(match_row, col).Formula = f"{prefix}!{addr}"
-                else:
-                    print(f"[{date_str}] Avvertenza: Impossibile trovare la data corrispondente {dt_comp.date()} nel file Madre per aggiornare le formule.")
-                    
+                        expected_formula = f"{prefix}!{addr}"
+                        try:
+                            curr_f = ws_mother.Cells(r, col).Formula
+                        except Exception:
+                            curr_f = ""
+                        if curr_f != expected_formula:
+                            formulas_to_write[col] = expected_formula
+                            
+                    if formulas_to_write:
+                        print(f"Sincronizzazione formule per il giorno {day_num}...")
+                        for col, f_val in formulas_to_write.items():
+                            ws_mother.Cells(r, col).Formula = f_val
+                        sync_count += 1
+                        
+            try:
+                excel.Calculation = -4105  # xlCalculationAutomatic
+                excel.CalculateBeforeSave = True
+                wb_mother.Calculate()
+            except Exception:
+                pass
+                
+            wb_mother.Save()
+            wb_mother.Close(SaveChanges=True)
+            print(f"Sincronizzazione completata! Giorni aggiornati nel file Madre: {sync_count}")
+        except Exception as ex:
+            print(f"Errore durante l'aggiornamento del file Madre via Excel COM: {ex}")
+            if wb_mother:
                 try:
-                    excel.Calculation = -4105  # xlCalculationAutomatic
-                    excel.CalculateBeforeSave = True
-                    wb_mother.Calculate()
+                    wb_mother.Close(SaveChanges=False)
                 except Exception:
                     pass
-                    
-                wb_mother.Save()
-                wb_mother.Close(SaveChanges=True)
-            except Exception as ex:
-                print(f"[{date_str}] Errore durante l'aggiornamento della riga nel file Madre via Excel COM: {ex}")
-                if 'wb_mother' in locals() and wb_mother:
-                    wb_mother.Close(SaveChanges=False)
-            finally:
-                if 'wb_daily' in locals() and wb_daily:
-                    try:
-                        wb_daily.Close(SaveChanges=False)
-                    except Exception:
-                        pass
-            
-        return df_result, calc_results
+            raise RuntimeError(f"Impossibile salvare o aggiornare il file Madre '{expected_mother_filename}'.\n"
+                               f"Assicurarsi che il file non sia aperto in un'altra finestra di Excel o bloccato da un altro utente.\n"
+                               f"Dettaglio errore: {ex}")
 
     def run_calculation(self, folder, date_str, pvsyst_pr, threshold):
         try:
@@ -1288,15 +1215,20 @@ class PRCalculatorGUI:
                     day_folder = os.path.join(folder, day_str)
                     try:
                         last_df_result, last_calc_results = self.calculate_single_day(
-                            day_folder, target_date_str, pvsyst_pr, threshold, calcolo_folder
+                            day_folder, target_date_str, pvsyst_pr, threshold, calcolo_folder, skip_mother_update=True
                         )
                         self.all_days_results.append(last_calc_results)
                         processed_count += 1
                     except Exception as day_err:
                         raise ValueError(f"Errore nel Giorno {day_str}: {day_err}")
                         
+                # Sincronizza sempre il file Madre alla fine del batch (aggiorna anche i giorni saltati)
+                status_text = "Sincronizzazione finale del file Madre..."
+                self.root.after(0, lambda t=status_text: self.lbl_status.config(text=t, foreground=self.warn_color))
+                self.sync_mother_file(calcolo_folder, year_val, month_val)
+                
                 if processed_count == 0:
-                    status_msg = f"Tutti i {skipped_count} giorni sono già elaborati. Spunta la casella per ricalcolare."
+                    status_msg = f"Tutti i {skipped_count} giorni erano già elaborati. Sincronizzato il file Madre."
                     self.root.after(0, lambda m=status_msg: self.lbl_status.config(text=m, foreground=self.success_color))
                     self.root.after(0, lambda: self.btn_calculate.config(state="normal"))
                     return
@@ -1305,7 +1237,7 @@ class PRCalculatorGUI:
                 self.df_result = last_df_result
                 self.calc_results = last_calc_results
                 
-                success_msg = f"Batch completato! Elaborati: {processed_count} giorni, Saltati: {skipped_count} giorni."
+                success_msg = f"Batch completato! Elaborati: {processed_count} giorni, Sincronizzato file Madre."
                 self.root.after(0, lambda m=success_msg: self.lbl_status.config(text=m, foreground=self.success_color))
                 self.root.after(0, self.update_ui_on_success)
                 
