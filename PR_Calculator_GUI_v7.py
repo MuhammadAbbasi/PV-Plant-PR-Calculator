@@ -1115,11 +1115,11 @@ class PRCalculatorGUI:
             for day_num in range(1, num_days + 1):
                 chk_daily_filename = f"PR_recalculation_{day_num:02d}_{month_name}.xlsx"
                 chk_daily_path = os.path.join(calcolo_folder, chk_daily_filename)
-                
+                r = 5 + day_num - 1
+
                 if os.path.exists(chk_daily_path):
-                    r = 5 + day_num - 1
                     prefix = f"='{daily_dir}\\[{chk_daily_filename}]PR_Calc'"
-                    
+
                     formulas_to_write = {}
                     for col in range(2, 45):
                         if col == 2: addr = "$I$111"
@@ -1138,7 +1138,7 @@ class PRCalculatorGUI:
                         elif 33 <= col <= 44:
                             daily_col_letter = openpyxl.utils.get_column_letter(col + 8)
                             addr = f"{daily_col_letter}$111"
-                            
+
                         expected_formula = f"{prefix}!{addr}"
                         try:
                             curr_f = ws_mother.Cells(r, col).Formula
@@ -1146,12 +1146,22 @@ class PRCalculatorGUI:
                             curr_f = ""
                         if curr_f != expected_formula:
                             formulas_to_write[col] = expected_formula
-                            
+
                     if formulas_to_write:
                         print(f"Sincronizzazione formule per il giorno {day_num}...")
                         for col, f_val in formulas_to_write.items():
                             ws_mother.Cells(r, col).Formula = f_val
                         sync_count += 1
+                else:
+                    # Daily file not yet processed — clear any stale data/formulas left
+                    # over from a previous month's template so the row stays blank.
+                    for col in range(2, 45):
+                        try:
+                            cell = ws_mother.Cells(r, col)
+                            if cell.Value is not None or cell.Formula:
+                                cell.Value = None
+                        except Exception:
+                            pass
                         
             try:
                 excel.Calculation = -4105  # xlCalculationAutomatic
