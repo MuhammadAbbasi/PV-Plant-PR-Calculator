@@ -263,7 +263,7 @@ class PRCalculatorGUI:
         # PVSyst PR Input
         pr_frame = ttk.Frame(params_grid, style="Card.TFrame")
         pr_frame.grid(row=0, column=1, padx=5, sticky="ew")
-        ttk.Label(pr_frame, text="PR Mensile PVSyst:", style="Card.TLabel").pack(anchor="w")
+        ttk.Label(pr_frame, text="PR Mensile PVSyst (es. 0.897):", style="Card.TLabel").pack(anchor="w")
         self.entry_pr = ttk.Entry(pr_frame, textvariable=self.pvsyst_pr_var, width=10, font=("Segoe UI", 9))
         self.entry_pr.pack(anchor="w", pady=2)
         
@@ -364,15 +364,15 @@ class PRCalculatorGUI:
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side="right", fill="y")
         
-        cols = ("ID Inverter", "Trasformatore", "Nominal DC (kW)", "Energia Reale (kWh)", "Perdita Stima (kWh)", "PR Compensato (%)")
+        cols = ("Codice Inverter", "Trasformatore", "Potenza CC Nominale (kW)", "Energia Prodotta (kWh)", "Perdita Stimata (kWh)", "PR Compensato (%)")
         self.tree = ttk.Treeview(table_frame, columns=cols, show="headings", yscrollcommand=scrollbar.set)
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.tree.yview)
         
         for c in cols:
             self.tree.heading(c, text=c)
-            align = "center" if c != "ID Inverter" else "w"
-            width = 110 if c != "ID Inverter" else 150
+            align = "center" if c != "Codice Inverter" else "w"
+            width = 110 if c != "Codice Inverter" else 150
             self.tree.column(c, width=width, anchor=align)
 
         # Tab 2: Daily Summary
@@ -1374,7 +1374,7 @@ class PRCalculatorGUI:
             with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
                 # 1. Summary Sheet
                 summary_data = {
-                    "Metric": [
+                    "Parametro": [
                         "Data di Calcolo",
                         "Irradiazione Giornaliera Totale (kWh/m²)",
                         "Target PR PVSyst Mensile",
@@ -1383,7 +1383,7 @@ class PRCalculatorGUI:
                         "PR Grezzo Compensato (%)",
                         "Media dei 36 PR Inverter Compensati (%)"
                     ],
-                    "Value": [
+                    "Valore": [
                         res["date_str"],
                         res["h_sum_kwh"],
                         float(self.pvsyst_pr_var.get()),
@@ -1397,7 +1397,7 @@ class PRCalculatorGUI:
                 df_sum.to_excel(writer, sheet_name="Riepilogo", index=False)
                 
                 # 2. Inverter PRs Sheet
-                inverter_cols = ["ID Inverter", "Trasformatore", "Nominal DC (kW)", "Energia Reale (kWh)", "Perdita Stima (kWh)", "PR Compensato (%)"]
+                inverter_cols = ["Codice Inverter", "Trasformatore", "Potenza CC Nominale (kW)", "Energia Prodotta (kWh)", "Perdita Stimata (kWh)", "PR Compensato (%)"]
                 df_inv_prs = pd.DataFrame(res["inverter_table_data"], columns=inverter_cols)
                 df_inv_prs.to_excel(writer, sheet_name="PR_Inverter", index=False)
                 
