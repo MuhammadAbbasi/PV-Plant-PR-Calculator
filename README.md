@@ -1,4 +1,4 @@
-# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v6.0)
+# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v7.0)
 
 A professional, high-performance Python-based tool designed for the **GET S.R.L.** Mazara 01 photovoltaic plant. This application automates the calculation of the Performance Ratio (PR), providing both raw and compensated metrics by processing SCADA data and weather station logs.
 
@@ -10,9 +10,10 @@ A professional, high-performance Python-based tool designed for the **GET S.R.L.
 - **Compensated PR Analysis**: Intelligent logic to account for:
     - **Curtailment Losses**: Energy lost due to grid-imposed power limits.
     - **Downtime Losses**: Energy lost during inverter or transformer outages.
-- **Batch Processing Mode (v6.0 Optimized)**: Processes a month's data in a single run, utilizing a high-speed single-pass sync that minimizes Excel startup overhead.
+- **Batch Processing Mode**: Processes a month's data in a single run, utilizing a high-speed single-pass sync that minimizes Excel startup overhead.
 - **Excel Automation via ActiveX**: Utilizes Excel COM for seamless report generation, avoiding `openpyxl` table corruption and ensuring that complex formulas and styles remain uncorrupted.
-- **Mother-Child File Syncing (v6.0 Self-Healing)**: Automatically scans and links monthly "Mother" files with data from daily "Child" recalculation files via dynamic Excel formulas. If the file is locked, it reports descriptive errors to the user instead of failing silently.
+- **Mother-Child File Syncing (Self-Healing)**: Automatically scans and links monthly "Mother" files with data from daily "Child" recalculation files via dynamic Excel formulas. If the file is locked, it reports descriptive errors to the user instead of failing silently.
+- **Direct Loss Write (v7.0)**: Python-computed per-inverter energy losses are written directly to the Excel loss columns (O–Z for TX1, AB–AM for TX2, AO–AZ for TX3), bypassing Excel formula dependency and guaranteeing correctness independent of any cell parameter.
 - **Obsidian Dark Mode Interface**: A premium, luxury-themed GUI built with Tkinter, featuring real-time logging, interactive controls, and performance metrics.
 
 ## Prerequisites
@@ -34,7 +35,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 2. **Template Configuration**:
    Ensure the `original_format/` directory contains the required Excel templates:
    - `00 PR_recalculation_*.xlsx` (Monthly Mother file)
-   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 6.0 aligned*)
+   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 7.0 aligned*)
 
 3. **Assets**:
    Place company logos in the `assets/` folder (`logo.png`, `logo.ico`).
@@ -44,11 +45,11 @@ pip install pandas numpy openpyxl pywin32 Pillow
 1. **Launch the Application**:
    Run the GUI using Python:
    ```bash
-   python PR_Calculator_GUI.py
+   python PR_Calculator_GUI_v7.py
    ```
    Or run the compiled executable:
    ```bash
-   "PR Calculator v6.exe"
+   "PR Calculator v7.exe"
    ```
 
 2. **Single Day Processing**:
@@ -125,6 +126,15 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 
 ---
 
+## Changelog
+
+### v7.0
+- **Bug fix**: Energy loss values (TX1/TX2/TX3) were reported 100× too small in all Excel output files. Root cause: the PVSyst PR parameter written to cell `BA4` was divided by 100 twice (`pvsyst_pr / 100.0` when the value is already stored as a decimal, e.g. `0.897`). Every Excel loss formula uses `$BA$4`, so all reported losses were off by a factor of 100 (e.g. 181 kWh shown instead of ~18,091 kWh on a curtailed day).
+- **Fix**: `BA4` is now written as `float(pvsyst_pr)` directly.
+- **Fix**: Python-computed per-inverter energy losses are written directly to the PR_Calc sheet (columns O–Z for TX1, AB–AM for TX2, AO–AZ for TX3) as plain values, removing the dependency on Excel formula recalculation and the `BA4` parameter for those cells.
+
+---
+
 ## 🛠 Compilation (Building the Executable)
 
 To bundle the application into a standalone Windows executable:
@@ -133,7 +143,7 @@ To bundle the application into a standalone Windows executable:
 python scratch/build_exe.py
 ```
 
-This script will verify your PyInstaller installation, build the executable using **`PR Calculator v6.spec`**, and copy the standalone **`PR Calculator v6.exe`** to the main folder.
+This script will verify your PyInstaller installation, build the executable using **`PR Calculator v7.spec`**, and copy the standalone **`PR Calculator v7.exe`** to the main folder.
 
 ---
 
