@@ -751,30 +751,30 @@ class PRCalculatorGUI:
             dc = self.dc_powers[inv_id]
             tx_name = inv_id.split("-")[0]
             
-            # Expected production per inverter at pvsyst_pr reference (no AC cap —
-            # pvsyst_pr already embeds AC clipping in its monthly average).
-            expected_s = (df_result['h'] / 1000.0) * dc * pvsyst_pr
+            if tx_name in ["TX1", "TX3"]:
+                dt_loss_s = np.where(
+                    (df_result['h'] > threshold) & (df_result[inv_id] <= 0),
+                    np.where(
+                        df_result[f"{tx_name}_Average_Power"] > 0,
+                        df_result[f"{tx_name}_Average_Power"] * 0.25,
+                        (df_result['h'] / 1000.0) * dc * pvsyst_pr * 0.25
+                    ),
+                    0.0
+                )
+            else:
+                dt_loss_s = np.where(
+                    (df_result['h'] > threshold) & (df_result[inv_id] <= 0) & (df_result[f"{tx_name}_Average_Power"] <= 0),
+                    np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) * 0.25,
+                    np.where(
+                        (df_result['h'] > threshold) & (df_result[inv_id] <= 0),
+                        df_result[f"{tx_name}_Average_Power"] * 0.25,
+                        0.0
+                    )
+                )
 
-            # Downtime loss: fires only when the plant is NOT curtailed
-            # (limit_ratio >= 0.875) and this inverter shows zero output.
-            # Using the TX average power of running peers avoids inflating the
-            # loss when only a subset of inverters is down.
-            dt_loss_s = np.where(
-                (df_result['h'] > threshold) & (df_result[inv_id] <= 0) & (df_result['limit_ratio'] >= 0.875),
-                np.where(
-                    df_result[f"{tx_name}_Average_Power"] > 0,
-                    df_result[f"{tx_name}_Average_Power"] * 0.25,
-                    expected_s * 0.25
-                ),
-                0.0
-            )
-
-            # Curtailment loss: fires only when the plant IS curtailed
-            # (limit_ratio < 0.875). No AC cap on the expected output so that
-            # comp_raw_pr converges to pvsyst_pr when curtailment is the only loss.
             curt_loss_s = np.where(
                 df_result['limit_ratio'] < 0.875,
-                np.maximum(0.0, expected_s - self.ac_power_all * df_result['limit_ratio']) * 0.25,
+                np.maximum(0.0, np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) - self.ac_power_all * df_result['limit_ratio']) * 0.25,
                 0.0
             )
             new_cols[f"{inv_id}_dt_loss"] = dt_loss_s
