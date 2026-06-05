@@ -1001,6 +1001,10 @@ class PRCalculatorGUI:
             
             # Write nominal parameters in Column BA (53)
             ws_calc.Cells(4, 53).Value = float(pvsyst_pr)           # BA4 = decimal PR (e.g. 0.897)
+            ws_calc.Cells(5, 53).Formula = "=((SUM(Tabella01MarzoInverter[[Active power TX1-INV-1]:[Active power TX1-INV-12]]," \
+                                           "Tabella01MarzoInverter[[Active power TX2-INV-1]:[Active power TX2-INV-12]]," \
+                                           "Tabella01MarzoInverter[[Active power TX3-INV-1]:[Active power TX3-INV-12]]) * 0.25) )" \
+                                           " / (12625 * (SUM($H$15:$H$110) * 0.25 / 1000))"
             ws_calc.Cells(6, 53).Value = 0.03                     # BA6 is irradiance acceptance limit ratio
             ws_calc.Cells(7, 53).Value = float(threshold)          # BA7 is irradiance minimum value (e.g. 50)
             
