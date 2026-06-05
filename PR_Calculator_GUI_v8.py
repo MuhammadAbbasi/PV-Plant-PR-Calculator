@@ -1097,17 +1097,9 @@ class PRCalculatorGUI:
                 ws_mother.Cells(4, 6).Value = "PR VCOM"
                 ws_mother.Cells(4, 7).Value = "External Availability\n[%]"
                 
-                # Retrieve Table Name dynamically
-                tbl_name = "TabellaAPRL2026"
-                try:
-                    if ws_mother.ListObjects.Count > 0:
-                        tbl_name = ws_mother.ListObjects(1).Name
-                except Exception:
-                    pass
-                
-                # Write formulas for External Availability in day rows (5 to 4 + num_days)
-                for r in range(5, 5 + num_days):
-                    ws_mother.Cells(r, 7).Formula = f"=({tbl_name}[[#This Row],[Colonna11]]/({tbl_name}[[#This Row],[Colonna11]]+{tbl_name}[[#This Row],[Colonna13]]+{tbl_name}[[#This Row],[Colonna14]]+{tbl_name}[[#This Row],[Colonna15]]))*100"
+            # Write/update formulas for External Availability in day rows (5 to 4 + num_days)
+            for r in range(5, 5 + num_days):
+                ws_mother.Cells(r, 7).Formula = "=([@Colonna11]/([@Colonna11]+[@Colonna13]+[@Colonna14]+[@Colonna15]))*100"
             
             # Dynamically format and adjust summary row in existing Mother file if needed!
             current_summary_row = None
