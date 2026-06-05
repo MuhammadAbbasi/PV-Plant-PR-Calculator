@@ -1103,7 +1103,7 @@ class PRCalculatorGUI:
                         ws_mother.Rows(current_summary_row).Insert()
                         ws_mother.Rows(current_summary_row - 1).Copy(ws_mother.Rows(current_summary_row))
                         excel.CutCopyMode = False
-                        for c in range(1, 45):
+                        for c in range(1, 65):
                             ws_mother.Cells(current_summary_row, c).Value = None
                 elif current_summary_row > target_summary_row:
                     rows_to_delete = current_summary_row - target_summary_row
@@ -1113,6 +1113,8 @@ class PRCalculatorGUI:
                     
                 ws_mother.Cells(target_summary_row, 4).Formula = f"=AVERAGE(D5:D{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 5).Formula = f"=AVERAGE(E5:E{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 6).Formula = f"=AVERAGE(F5:F{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 7).Formula = f"=SUMIF(G5:G{target_summary_row-1},\"<>100\")/COUNTIF(G5:G{target_summary_row-1},\"<>100\")"
             
             # Change links natively via Excel to avoid openpyxl corruption if initialized new
             if initialized_new:
@@ -1143,7 +1145,7 @@ class PRCalculatorGUI:
                     header_mapping[col] = "$I$111"
                 elif "energy" in val_str and "loss" not in val_str and "perdita" not in val_str:
                     header_mapping[col] = "$M$111"
-                elif "pr total" in val_str:
+                elif "pr total" in val_str or "pr vcom" in val_str:
                     header_mapping[col] = "$BA$5*100"
                 elif "pr scada" in val_str:
                     header_mapping[col] = "$BH$8"
