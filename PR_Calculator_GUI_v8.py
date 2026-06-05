@@ -1088,6 +1088,27 @@ class PRCalculatorGUI:
             num_days = calendar.monthrange(year_val, month_val)[1]
             target_summary_row = 5 + num_days
             
+            # Programmatically ensure "PR VCOM" and "External Availability [%]" columns are present
+            f4_val = ws_mother.Cells(4, 6).Value
+            if not (f4_val and "VCOM" in str(f4_val)):
+                print("DEBUG: PR VCOM column not found at Column F. Programmatically inserting PR VCOM and External Availability columns...")
+                ws_mother.Columns(6).Insert()
+                ws_mother.Columns(6).Insert()
+                ws_mother.Cells(4, 6).Value = "PR VCOM"
+                ws_mother.Cells(4, 7).Value = "External Availability\n[%]"
+                
+                # Retrieve Table Name dynamically
+                tbl_name = "TabellaAPRL2026"
+                try:
+                    if ws_mother.ListObjects.Count > 0:
+                        tbl_name = ws_mother.ListObjects(1).Name
+                except Exception:
+                    pass
+                
+                # Write formulas for External Availability in day rows (5 to 4 + num_days)
+                for r in range(5, 5 + num_days):
+                    ws_mother.Cells(r, 7).Formula = f"=({tbl_name}[[#This Row],[Colonna11]]/({tbl_name}[[#This Row],[Colonna11]]+{tbl_name}[[#This Row],[Colonna13]]+{tbl_name}[[#This Row],[Colonna14]]+{tbl_name}[[#This Row],[Colonna15]]))*100"
+            
             # Dynamically format and adjust summary row in existing Mother file if needed!
             current_summary_row = None
             for r in range(30, 42):
