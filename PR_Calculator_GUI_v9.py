@@ -406,13 +406,6 @@ class PRCalculatorGUI:
         self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         self.lbl_status.pack(anchor="w", pady=(2, 0))
         
-        # Export Button (moved from the bottom panel)
-        self.btn_export = ttk.Button(inputs_card, text="Esporta Dati Completi su Excel...", style="Secondary.TButton", state="disabled", command=self.export_to_excel)
-        self.btn_export.pack(fill="x", pady=(10, 0))
-        
-        self.lbl_export_status = tk.Label(inputs_card, text="", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
-        self.lbl_export_status.pack(anchor="w", pady=(2, 0))
-        
         # 2. Metrics Frame (Right Card - now containing PVSyst Table)
         metrics_card_border, self.metrics_card = self.create_card(top_grid, padding=15)
         metrics_card_border.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
@@ -423,6 +416,8 @@ class PRCalculatorGUI:
         self.lbl_comp_pr_val = tk.Label(self.dummy_parent)
         self.lbl_pvsyst_target_val = tk.Label(self.dummy_parent)
         self.lbl_irrad_summary = tk.Label(self.dummy_parent)
+        self.btn_export = ttk.Button(self.dummy_parent)
+        self.lbl_export_status = tk.Label(self.dummy_parent)
         
         lbl_sec_me = tk.Label(self.metrics_card, text="Tabella Riferimento Target PVSyst", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
         lbl_sec_me.pack(anchor="w", pady=(0, 2))
