@@ -1263,7 +1263,7 @@ class PRCalculatorGUI:
             
             # Write PR Compensated in Column BD (56) Row 11 and Column BH (60) Row 11 (percentage e.g. 81.743)
             ws_calc.Cells(11, 56).Value = "PR Compensated [%]"
-            ws_calc.Cells(11, 60).Value = float(comp_raw_pr)
+            ws_calc.Cells(11, 60).Formula = "=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * (SUM($H$15:$H$110)*0.25/1000))) * 100"
             
             print(f"[{date_str}] DEBUG: Aggiornamento tabelle laterali completato. Salvataggio cartella di lavoro in corso...")
             
