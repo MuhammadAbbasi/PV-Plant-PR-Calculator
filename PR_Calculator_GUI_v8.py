@@ -178,9 +178,12 @@ class PRCalculatorGUI:
         # State variables
         self.folder_path_var = tk.StringVar()
         self.date_var = tk.StringVar(value="2026-04-26")
-        self.pvsyst_pr_var = tk.StringVar(value="0.897")
+        self.pvsyst_pr_var = tk.StringVar(value="0.868") # Default for April
         self.threshold_var = tk.StringVar(value="50")
         self.reprocess_all_var = tk.BooleanVar(value=False)
+        
+        # Register a trace on date_var to auto-update the PVSyst PR default value
+        self.date_var.trace_add("write", self.on_date_changed)
         
         # Placeholders for results
         self.calc_results = None
@@ -521,7 +524,32 @@ class PRCalculatorGUI:
                                 return
         except Exception:
             pass
-                            
+            
+    def on_date_changed(self, *args):
+        try:
+            date_str = self.date_var.get().strip()
+            parts = date_str.split("-")
+            if len(parts) >= 2:
+                month_val = int(parts[1])
+                pvsyst_defaults = {
+                    1: 0.904,   # January
+                    2: 0.896,   # February
+                    3: 0.897,   # March
+                    4: 0.868,   # April
+                    5: 0.832,   # May
+                    6: 0.833,   # June
+                    7: 0.820,   # July
+                    8: 0.828,   # August
+                    9: 0.852,   # September
+                    10: 0.876,  # October
+                    11: 0.894,  # November
+                    12: 0.900   # December
+                }
+                if month_val in pvsyst_defaults:
+                    self.pvsyst_pr_var.set(f"{pvsyst_defaults[month_val]:.3f}")
+        except Exception:
+            pass
+            
     def start_calculation(self):
         folder = self.folder_path_var.get()
         if not folder or not os.path.exists(folder):
