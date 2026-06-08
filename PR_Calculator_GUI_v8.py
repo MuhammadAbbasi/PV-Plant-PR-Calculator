@@ -177,8 +177,19 @@ class PRCalculatorGUI:
         
         # State variables
         self.folder_path_var = tk.StringVar()
-        self.date_var = tk.StringVar(value="2026-04-26")
-        self.pvsyst_pr_var = tk.StringVar(value="0.868") # Default for April
+        
+        # Determine current local date and corresponding PVSyst PR default value
+        today = datetime.date.today()
+        current_date_str = today.strftime("%Y-%m-%d")
+        current_month = today.month
+        pvsyst_defaults = {
+            1: 0.904, 2: 0.896, 3: 0.897, 4: 0.868, 5: 0.832, 6: 0.833,
+            7: 0.820, 8: 0.828, 9: 0.852, 10: 0.876, 11: 0.894, 12: 0.900
+        }
+        default_pr = f"{pvsyst_defaults.get(current_month, 0.868):.3f}"
+        
+        self.date_var = tk.StringVar(value=current_date_str)
+        self.pvsyst_pr_var = tk.StringVar(value=default_pr)
         self.threshold_var = tk.StringVar(value="50")
         self.reprocess_all_var = tk.BooleanVar(value=False)
         
