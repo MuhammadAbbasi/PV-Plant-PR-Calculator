@@ -195,6 +195,8 @@ class PRCalculatorGUI:
         
         # Register a trace on date_var to auto-update the PVSyst PR default value
         self.date_var.trace_add("write", self.on_date_changed)
+        # Register a trace on pvsyst_pr_var to update the metric card in real time
+        self.pvsyst_pr_var.trace_add("write", self.on_pvsyst_pr_changed)
         
         # Placeholders for results
         self.calc_results = None
@@ -372,13 +374,13 @@ class PRCalculatorGUI:
         self.lbl_comp_pr_val.pack(anchor="center", pady=10)
         tk.Label(card_comp, text="Totale impianto con perdite", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
         
-        # Card for Uncomp RAW PR
-        card_uncomp_border, card_uncomp = self.create_card(metrics_grid, padding=10)
-        card_uncomp_border.grid(row=0, column=2, padx=5, sticky="nsew")
-        tk.Label(card_uncomp, text="PR NON COMPENSATO", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
-        self.lbl_uncomp_pr_val = tk.Label(card_uncomp, text="-- %", bg="#ffffff", fg=self.warn_color, font=("Segoe UI", 22, "bold"))
-        self.lbl_uncomp_pr_val.pack(anchor="center", pady=10)
-        tk.Label(card_uncomp, text="Energia reale totale impianto", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
+        # Card for PVSyst Target PR
+        card_pvsyst_border, card_pvsyst = self.create_card(metrics_grid, padding=10)
+        card_pvsyst_border.grid(row=0, column=2, padx=5, sticky="nsew")
+        tk.Label(card_pvsyst, text="TARGET PR PVSYST", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
+        self.lbl_pvsyst_target_val = tk.Label(card_pvsyst, text="-- %", bg="#ffffff", fg=self.warn_color, font=("Segoe UI", 22, "bold"))
+        self.lbl_pvsyst_target_val.pack(anchor="center", pady=10)
+        tk.Label(card_pvsyst, text="PR di riferimento da PVSyst", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
         
         # Irradiance summary line
         self.lbl_irrad_summary = tk.Label(self.metrics_card, text="Irradiazione giornaliera totale: -- kWh/m² (Media POA > 50 W/m²)", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 10))
@@ -603,6 +605,13 @@ class PRCalculatorGUI:
                     self.pvsyst_pr_var.set(f"{pvsyst_defaults[month_val]:.3f}")
         except Exception:
             pass
+            
+    def on_pvsyst_pr_changed(self, *args):
+        try:
+            val = float(self.pvsyst_pr_var.get())
+            self.lbl_pvsyst_target_val.config(text=f"{val * 100:.3f} %")
+        except ValueError:
+            self.lbl_pvsyst_target_val.config(text="-- %")
             
     def start_calculation(self):
         folder = self.folder_path_var.get()
@@ -1502,7 +1511,11 @@ class PRCalculatorGUI:
         # Display main metrics
         self.lbl_avg_pr_val.config(text=f"{res['avg_inv_pr']:.3f} %")
         self.lbl_comp_pr_val.config(text=f"{res['comp_raw_pr']:.3f} %")
-        self.lbl_uncomp_pr_val.config(text=f"{res['uncomp_pr']:.3f} %")
+        try:
+            val = float(self.pvsyst_pr_var.get())
+            self.lbl_pvsyst_target_val.config(text=f"{val * 100:.3f} %")
+        except ValueError:
+            self.lbl_pvsyst_target_val.config(text="-- %")
         
         self.lbl_irrad_summary.config(
             text=f"Irradiazione giornaliera totale: {res['h_sum_kwh']:.4f} kWh/m² (Media POA > {self.threshold_var.get()} W/m²)"
