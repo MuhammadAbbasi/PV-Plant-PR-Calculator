@@ -76,7 +76,7 @@ class PRCalculatorGUI:
         self.root = root
         self.root.title("Calcolatore Performance Ratio (PR) Fotovoltaico Mazara 01 - v8.0")
         self.root.geometry("1020x940")
-        self.root.configure(bg="#0b0f19")
+        self.root.configure(bg="#f8f9fa")
         
         # Ensure Windows taskbar and task manager correctly display the custom GET logo icon
         try:
@@ -105,50 +105,58 @@ class PRCalculatorGUI:
         self.style = ttk.Style()
         self.style.theme_use("clam")
         
-        # Define Color Palette (Highly Readable Luxury Dark Theme for Italian Operators)
-        self.bg_color = "#0b0f19"      # Deep Rich Midnight / Obsidian
-        self.card_bg = "#151c2c"       # Elevated Slate Navy Surface
-        self.accent_color = "#c8ad55"  # Premium Metallic Champagne Gold
-        self.accent_hover = "#b09540"  # Darker Gold
-        self.text_color = "#f1f5f9"    # Crisp Ice White for maximum readability
-        self.muted_text = "#94a3b8"    # Soft Slate Grey
-        self.success_color = "#10b981" # Emerald Green for premium KPI display
-        self.warn_color = "#00adb5"    # Electric Cyan
+        # Define Color Palette (Google Styled Clean Light Theme)
+        self.bg_color = "#f8f9fa"      # Clean Light Gray background
+        self.card_bg = "#ffffff"       # Pure White Surface
+        self.accent_color = "#1a73e8"  # Google Blue Primary Accent
+        self.accent_hover = "#1557b0"  # Darker Blue for hovers
+        self.text_color = "#202124"    # Dark Charcoal for maximum readability
+        self.muted_text = "#5f6368"    # Soft Slate Grey
+        self.success_color = "#137333" # Google Green
+        self.warn_color = "#b06000"    # Google Amber/Orange for secondary/uncompensated
+        self.border_color = "#dadce0"  # Google Light Gray border
         
         # Custom Widget Configurations
         self.style.configure("TFrame", background=self.bg_color)
         self.style.configure("Card.TFrame", background=self.card_bg, relief="flat")
         self.style.configure("TLabel", background=self.bg_color, foreground=self.text_color, font=("Segoe UI", 10))
         self.style.configure("Card.TLabel", background=self.card_bg, foreground=self.text_color, font=("Segoe UI", 10))
-        self.style.configure("Title.TLabel", background=self.bg_color, foreground=self.accent_color, font=("Segoe UI Semibold", 18, "bold"))
+        self.style.configure("Title.TLabel", background=self.bg_color, foreground=self.text_color, font=("Segoe UI Semibold", 16, "bold"))
         self.style.configure("Section.TLabel", background=self.card_bg, foreground=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
-        self.style.configure("MetricVal.TLabel", background=self.card_bg, foreground=self.success_color, font=("Segoe UI", 20, "bold"))
+        self.style.configure("MetricVal.TLabel", background=self.card_bg, foreground=self.success_color, font=("Segoe UI", 22, "bold"))
         self.style.configure("MetricLbl.TLabel", background=self.card_bg, foreground=self.muted_text, font=("Segoe UI Semibold", 9))
         
         # Entry Field styling
-        self.style.configure("TEntry", fieldbackground="#0b0f19", background="#0b0f19", foreground=self.text_color, borderwidth=1, bordercolor="#454955")
-        self.style.map("TEntry", fieldbackground=[("active", "#1e293b"), ("focus", "#1e293b")], foreground=[("active", "#ffffff"), ("focus", "#ffffff")])
+        self.style.configure("TEntry", fieldbackground="#ffffff", background="#ffffff", foreground=self.text_color, borderwidth=1, bordercolor="#dadce0", padding=6)
+        self.style.map("TEntry", 
+                       bordercolor=[("focus", self.accent_color), ("active", self.accent_color)],
+                       lightcolor=[("focus", self.accent_color)],
+                       darkcolor=[("focus", self.accent_color)])
         
         # Button styling
-        self.style.configure("TButton", background=self.accent_color, foreground="#00002f", borderwidth=0, font=("Segoe UI Semibold", 10, "bold"), padding=8)
-        self.style.map("TButton", background=[("active", self.accent_hover), ("disabled", "#1e293b")], foreground=[("disabled", "#454955")])
+        self.style.configure("TButton", background=self.accent_color, foreground="#ffffff", borderwidth=0, font=("Segoe UI Semibold", 10, "bold"), padding=[16, 8])
+        self.style.map("TButton", background=[("active", self.accent_hover), ("disabled", "#f1f3f4")], foreground=[("disabled", "#94a3b8")])
         
-        self.style.configure("Action.TButton", background=self.accent_color, foreground="#00002f", font=("Segoe UI Semibold", 11, "bold"), padding=10)
+        self.style.configure("Secondary.TButton", background="#ffffff", foreground=self.accent_color, bordercolor="#dadce0", darkcolor="#dadce0", lightcolor="#dadce0", borderwidth=1, font=("Segoe UI Semibold", 10), padding=[12, 6])
+        self.style.map("Secondary.TButton", background=[("active", "#f8f9fa"), ("disabled", "#ffffff")], foreground=[("disabled", "#94a3b8")], bordercolor=[("active", self.accent_color)])
+        
+        self.style.configure("Action.TButton", background=self.accent_color, foreground="#ffffff", font=("Segoe UI Semibold", 11, "bold"), padding=[20, 10])
         self.style.map("Action.TButton", background=[("active", self.accent_hover)])
         
         # Checkbutton styling
-        self.style.configure("Card.TCheckbutton", background=self.card_bg, foreground=self.text_color, font=("Segoe UI", 9.5))
-        self.style.map("Card.TCheckbutton", background=[("active", self.card_bg)], foreground=[("active", self.text_color)])
+        self.style.configure("TCheckbutton", background=self.card_bg, foreground=self.text_color, font=("Segoe UI", 10))
+        self.style.map("TCheckbutton", background=[("active", self.card_bg)], foreground=[("active", self.text_color)])
         
         # Treeview styling (for the inverter list)
-        self.style.configure("Treeview", background=self.card_bg, foreground=self.text_color, fieldbackground=self.card_bg, rowheight=24, borderwidth=0, font=("Segoe UI", 9))
-        self.style.configure("Treeview.Heading", background=self.bg_color, foreground=self.accent_color, font=("Segoe UI Semibold", 9, "bold"), borderwidth=0)
-        self.style.map("Treeview", background=[("selected", self.accent_color)], foreground=[("selected", "#00002f")])
+        self.style.configure("Treeview", background="#ffffff", foreground=self.text_color, fieldbackground="#ffffff", rowheight=28, borderwidth=0, font=("Segoe UI", 10))
+        self.style.configure("Treeview.Heading", background="#f8f9fa", foreground=self.text_color, font=("Segoe UI Semibold", 10), borderwidth=1, bordercolor="#dadce0")
+        self.style.map("Treeview", background=[("selected", "#e8f0fe")], foreground=[("selected", self.accent_color)])
+        self.style.map("Treeview.Heading", background=[("active", "#e8f0fe")], foreground=[("active", self.accent_color)])
         
         # Notebook styling
-        self.style.configure("TNotebook", background=self.card_bg, borderwidth=0)
-        self.style.configure("TNotebook.Tab", background="#1e293b", foreground=self.text_color, font=("Segoe UI Semibold", 10), padding=[15, 5])
-        self.style.map("TNotebook.Tab", background=[("selected", self.accent_color)], foreground=[("selected", "#00002f")])
+        self.style.configure("TNotebook", background=self.bg_color, borderwidth=0)
+        self.style.configure("TNotebook.Tab", background="#f1f3f4", foreground=self.muted_text, font=("Segoe UI Semibold", 10), padding=[20, 8, 20, 8], borderwidth=0)
+        self.style.map("TNotebook.Tab", background=[("selected", "#ffffff"), ("active", "#e8f0fe")], foreground=[("selected", self.accent_color), ("active", self.accent_color)])
         
         # Inverter Nominal capacities
         self.dc_powers = {
@@ -193,160 +201,178 @@ class PRCalculatorGUI:
         print(">>> GET SRL - Motore di calcolo Performance Ratio inizializzato.")
         print(">>> Pronto per l'analisi del giorno singolo o della cartella mensile batch.")
         
-    def create_layout(self):
-        # Main container
-        main_frame = ttk.Frame(self.root, padding=20)
-        main_frame.pack(fill="both", expand=True)
+    def create_card(self, parent, padding=16):
+        # Border container: light grey outline
+        border_card = tk.Frame(parent, bg="#dadce0", bd=0, highlightthickness=0)
+        # White surface
+        inner_card = tk.Frame(border_card, bg="#ffffff", bd=0, highlightthickness=0)
+        inner_card.pack(fill="both", expand=True, padx=1, pady=1)
         
-        # Header banner with Logo and Title
-        header_frame = tk.Frame(main_frame, bg=self.bg_color)
-        header_frame.pack(fill="x", pady=(0, 15))
+        # Internal content frame with padding
+        content_frame = tk.Frame(inner_card, bg="#ffffff", bd=0, highlightthickness=0)
+        content_frame.pack(fill="both", expand=True, padx=padding, pady=padding)
+        return border_card, content_frame
+
+    def create_layout(self):
+        # Top Header Bar spanning full width
+        header_bar = tk.Frame(self.root, bg="#ffffff", height=60, bd=0, highlightthickness=0)
+        header_bar.pack(side="top", fill="x")
+        header_bar.pack_propagate(False)
+        
+        # Subtle bottom border to the header bar
+        bottom_border = tk.Frame(self.root, bg="#dadce0", height=1)
+        bottom_border.pack(side="top", fill="x")
+        
+        # Header contents
+        header_inner = tk.Frame(header_bar, bg="#ffffff")
+        header_inner.pack(fill="both", expand=True, padx=24)
         
         logo_path = get_resource_path(os.path.join("assets", "logo.png"))
         if os.path.exists(logo_path):
             try:
-                # pyrefly: ignore [missing-import]
                 from PIL import Image, ImageTk
                 img = Image.open(logo_path)
-                img = img.resize((140, 45), Image.Resampling.LANCZOS)
+                img = img.resize((120, 38), Image.Resampling.LANCZOS)
                 self.logo_photo = ImageTk.PhotoImage(img)
-                lbl_logo = tk.Label(header_frame, image=self.logo_photo, bg=self.bg_color, bd=0)
-                lbl_logo.pack(side="left", padx=(0, 15))
+                lbl_logo = tk.Label(header_inner, image=self.logo_photo, bg="#ffffff", bd=0)
+                lbl_logo.pack(side="left", pady=10)
             except Exception:
                 pass
                 
-        title_lbl = ttk.Label(header_frame, text="GET SRL - CALCOLATORE PERFORMANCE RATIO MAZARA 01", style="Title.TLabel")
-        title_lbl.pack(side="left", anchor="w")
+        # Vertical divider line in header
+        divider = tk.Frame(header_inner, bg="#dadce0", width=1, height=24)
+        divider.pack(side="left", padx=16, pady=18)
+        
+        title_lbl = tk.Label(header_inner, text="Motore di Calcolo Performance Ratio - Mazara 01", bg="#ffffff", fg="#1f2124", font=("Segoe UI Semibold", 13))
+        title_lbl.pack(side="left", pady=10)
+        
+        # Version badge
+        version_badge = tk.Label(header_inner, text="v8.0", bg="#e8f0fe", fg="#1a73e8", font=("Segoe UI Semibold", 9), padx=8, pady=2)
+        version_badge.pack(side="left", padx=12)
+        
+        # Main container for body (with nice margins/padding)
+        main_frame = tk.Frame(self.root, bg="#f8f9fa")
+        main_frame.pack(side="top", fill="both", expand=True, padx=24, pady=20)
         
         # Top Grid: Inputs (Left) and Metrics (Right)
-        top_grid = ttk.Frame(main_frame)
+        top_grid = tk.Frame(main_frame, bg=self.bg_color)
         top_grid.pack(fill="x", pady=(0, 15))
         top_grid.columnconfigure(0, weight=4, minsize=400)
         top_grid.columnconfigure(1, weight=5, minsize=450)
         
-        # 1. Inputs Frame (Card style)
-        inputs_card = ttk.Frame(top_grid, padding=15, style="Card.TFrame")
-        inputs_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        # 1. Inputs Frame (Card style using helper)
+        inputs_card_border, inputs_card = self.create_card(top_grid, padding=15)
+        inputs_card_border.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         
-        lbl_sec_in = ttk.Label(inputs_card, text="Impostazioni di Calcolo", style="Section.TLabel")
+        lbl_sec_in = tk.Label(inputs_card, text="Impostazioni di Calcolo", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
         lbl_sec_in.pack(anchor="w", pady=(0, 12))
         
         # Folder row
-        folder_frame = ttk.Frame(inputs_card, style="Card.TFrame")
+        folder_frame = tk.Frame(inputs_card, bg="#ffffff")
         folder_frame.pack(fill="x", pady=5)
-        lbl_f = ttk.Label(folder_frame, text="Cartella File SCADA (Input):", style="Card.TLabel")
+        lbl_f = tk.Label(folder_frame, text="Cartella File SCADA (Input):", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9))
         lbl_f.pack(anchor="w")
         
-        folder_entry_frame = ttk.Frame(folder_frame, style="Card.TFrame")
+        folder_entry_frame = tk.Frame(folder_frame, bg="#ffffff")
         folder_entry_frame.pack(fill="x", pady=2)
         
-        self.entry_folder = ttk.Entry(folder_entry_frame, textvariable=self.folder_path_var, font=("Segoe UI", 9))
-        self.entry_folder.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.entry_folder = ttk.Entry(folder_entry_frame, textvariable=self.folder_path_var, font=("Segoe UI", 10))
+        self.entry_folder.pack(side="left", fill="x", expand=True, padx=(0, 8))
         
-        btn_browse = ttk.Button(folder_entry_frame, text="Sfoglia...", command=self.browse_folder)
+        btn_browse = ttk.Button(folder_entry_frame, text="Sfoglia...", style="Secondary.TButton", command=self.browse_folder)
         btn_browse.pack(side="right")
         
         # Parameters Grid (Date, PVSyst PR, Threshold)
-        params_grid = ttk.Frame(inputs_card, style="Card.TFrame")
+        params_grid = tk.Frame(inputs_card, bg="#ffffff")
         params_grid.pack(fill="x", pady=10)
         params_grid.columnconfigure(0, weight=1)
         params_grid.columnconfigure(1, weight=1)
         params_grid.columnconfigure(2, weight=1)
         
         # Date Input
-        date_frame = ttk.Frame(params_grid, style="Card.TFrame")
+        date_frame = tk.Frame(params_grid, bg="#ffffff")
         date_frame.grid(row=0, column=0, padx=(0, 5), sticky="ew")
-        ttk.Label(date_frame, text="Data (AAAA-MM-GG):", style="Card.TLabel").pack(anchor="w")
-        self.entry_date = ttk.Entry(date_frame, textvariable=self.date_var, width=12, font=("Segoe UI", 9))
+        tk.Label(date_frame, text="Data (AAAA-MM-GG):", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
+        self.entry_date = ttk.Entry(date_frame, textvariable=self.date_var, width=12, font=("Segoe UI", 10))
         self.entry_date.pack(anchor="w", pady=2)
         
         # PVSyst PR Input
-        pr_frame = ttk.Frame(params_grid, style="Card.TFrame")
+        pr_frame = tk.Frame(params_grid, bg="#ffffff")
         pr_frame.grid(row=0, column=1, padx=5, sticky="ew")
-        ttk.Label(pr_frame, text="PR Mensile PVSyst (es. 0.897):", style="Card.TLabel").pack(anchor="w")
-        self.entry_pr = ttk.Entry(pr_frame, textvariable=self.pvsyst_pr_var, width=10, font=("Segoe UI", 9))
+        tk.Label(pr_frame, text="PR Mensile PVSyst:", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
+        self.entry_pr = ttk.Entry(pr_frame, textvariable=self.pvsyst_pr_var, width=10, font=("Segoe UI", 10))
         self.entry_pr.pack(anchor="w", pady=2)
         
         # Irradiance Threshold
-        thresh_frame = ttk.Frame(params_grid, style="Card.TFrame")
+        thresh_frame = tk.Frame(params_grid, bg="#ffffff")
         thresh_frame.grid(row=0, column=2, padx=(5, 0), sticky="ew")
-        ttk.Label(thresh_frame, text="Irraggiamento Min (W/m²):", style="Card.TLabel").pack(anchor="w")
-        self.entry_thresh = ttk.Entry(thresh_frame, textvariable=self.threshold_var, width=10, font=("Segoe UI", 9))
+        tk.Label(thresh_frame, text="Irraggiamento Min (W/m²):", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
+        self.entry_thresh = ttk.Entry(thresh_frame, textvariable=self.threshold_var, width=10, font=("Segoe UI", 10))
         self.entry_thresh.pack(anchor="w", pady=2)
         
         # Force reprocess checkbox (Batch mode)
-        chk_frame = tk.Frame(inputs_card, bg=self.card_bg)
-        chk_frame.pack(anchor="w", pady=(8, 4), fill="x")
-        self.chk_reprocess = tk.Checkbutton(
+        chk_frame = tk.Frame(inputs_card, bg="#ffffff")
+        chk_frame.pack(anchor="w", pady=(8, 8), fill="x")
+        self.chk_reprocess = ttk.Checkbutton(
             chk_frame, 
-            variable=self.reprocess_all_var, 
-            bg=self.card_bg, 
-            activebackground=self.card_bg, 
-            selectcolor=self.card_bg
+            variable=self.reprocess_all_var,
+            text="Ricalcola forzatamente i giorni già elaborati (Modalità Batch)"
         )
         self.chk_reprocess.pack(side="left")
-        lbl_chk = tk.Label(
-            chk_frame, 
-            text="Ricalcola forzatamente i giorni già elaborati (Modalità Batch)", 
-            bg=self.card_bg, 
-            fg=self.text_color, 
-            font=("Segoe UI", 10)
-        )
-        lbl_chk.pack(side="left", padx=(2, 0))
         
         # Action button
         self.btn_calculate = ttk.Button(inputs_card, text="Calcola Performance Ratio", style="Action.TButton", command=self.start_calculation)
         self.btn_calculate.pack(fill="x", pady=(5, 5))
         
         # Progress/Status
-        self.lbl_status = ttk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", style="Card.TLabel", foreground=self.muted_text)
+        self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         self.lbl_status.pack(anchor="w", pady=(2, 0))
         
         # 2. Metrics Frame (Right Card)
-        self.metrics_card = ttk.Frame(top_grid, padding=15, style="Card.TFrame")
-        self.metrics_card.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        metrics_card_border, self.metrics_card = self.create_card(top_grid, padding=15)
+        metrics_card_border.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
         
-        lbl_sec_me = ttk.Label(self.metrics_card, text="Sintesi dei Risultati Chiave", style="Section.TLabel")
+        lbl_sec_me = tk.Label(self.metrics_card, text="Sintesi dei Risultati Chiave", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
         lbl_sec_me.pack(anchor="w", pady=(0, 15))
         
         # 3 Metrics Layout
-        metrics_grid = ttk.Frame(self.metrics_card, style="Card.TFrame")
+        metrics_grid = tk.Frame(self.metrics_card, bg="#ffffff")
         metrics_grid.pack(fill="both", expand=True)
         metrics_grid.columnconfigure(0, weight=1)
         metrics_grid.columnconfigure(1, weight=1)
         metrics_grid.columnconfigure(2, weight=1)
         
         # Card for Comp Average Inverter PR
-        card_avg = ttk.Frame(metrics_grid, padding=10, style="Card.TFrame", borderwidth=1, relief="solid")
-        card_avg.grid(row=0, column=0, padx=5, sticky="nsew")
-        ttk.Label(card_avg, text="MEDIA PR INVERTER", style="MetricLbl.TLabel").pack(anchor="center")
-        self.lbl_avg_pr_val = ttk.Label(card_avg, text="-- %", style="MetricVal.TLabel")
+        card_avg_border, card_avg = self.create_card(metrics_grid, padding=10)
+        card_avg_border.grid(row=0, column=0, padx=5, sticky="nsew")
+        tk.Label(card_avg, text="MEDIA PR INVERTER", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
+        self.lbl_avg_pr_val = tk.Label(card_avg, text="-- %", bg="#ffffff", fg=self.success_color, font=("Segoe UI", 22, "bold"))
         self.lbl_avg_pr_val.pack(anchor="center", pady=10)
-        ttk.Label(card_avg, text="Media dei 36 PR compensati", style="Card.TLabel", font=("Segoe UI", 8), foreground=self.muted_text).pack(anchor="center")
+        tk.Label(card_avg, text="Media dei 36 PR compensati", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
         
         # Card for Comp RAW PR
-        card_comp = ttk.Frame(metrics_grid, padding=10, style="Card.TFrame", borderwidth=1, relief="solid")
-        card_comp.grid(row=0, column=1, padx=5, sticky="nsew")
-        ttk.Label(card_comp, text="PR GREZZO COMPENSATO", style="MetricLbl.TLabel").pack(anchor="center")
-        self.lbl_comp_pr_val = ttk.Label(card_comp, text="-- %", style="MetricVal.TLabel", foreground=self.accent_color)
+        card_comp_border, card_comp = self.create_card(metrics_grid, padding=10)
+        card_comp_border.grid(row=0, column=1, padx=5, sticky="nsew")
+        tk.Label(card_comp, text="PR GREZZO COMPENSATO", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
+        self.lbl_comp_pr_val = tk.Label(card_comp, text="-- %", bg="#ffffff", fg=self.accent_color, font=("Segoe UI", 22, "bold"))
         self.lbl_comp_pr_val.pack(anchor="center", pady=10)
-        ttk.Label(card_comp, text="Totale impianto con perdite", style="Card.TLabel", font=("Segoe UI", 8), foreground=self.muted_text).pack(anchor="center")
+        tk.Label(card_comp, text="Totale impianto con perdite", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
         
         # Card for Uncomp RAW PR
-        card_uncomp = ttk.Frame(metrics_grid, padding=10, style="Card.TFrame", borderwidth=1, relief="solid")
-        card_uncomp.grid(row=0, column=2, padx=5, sticky="nsew")
-        ttk.Label(card_uncomp, text="PR NON COMPENSATO", style="MetricLbl.TLabel").pack(anchor="center")
-        self.lbl_uncomp_pr_val = ttk.Label(card_uncomp, text="-- %", style="MetricVal.TLabel", foreground=self.warn_color)
+        card_uncomp_border, card_uncomp = self.create_card(metrics_grid, padding=10)
+        card_uncomp_border.grid(row=0, column=2, padx=5, sticky="nsew")
+        tk.Label(card_uncomp, text="PR NON COMPENSATO", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
+        self.lbl_uncomp_pr_val = tk.Label(card_uncomp, text="-- %", bg="#ffffff", fg=self.warn_color, font=("Segoe UI", 22, "bold"))
         self.lbl_uncomp_pr_val.pack(anchor="center", pady=10)
-        ttk.Label(card_uncomp, text="Energia reale totale impianto", style="Card.TLabel", font=("Segoe UI", 8), foreground=self.muted_text).pack(anchor="center")
+        tk.Label(card_uncomp, text="Energia reale totale impianto", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
         
         # Irradiance summary line
-        self.lbl_irrad_summary = ttk.Label(self.metrics_card, text="Irradiazione giornaliera totale: -- kWh/m² (Media POA > 50 W/m²)", style="Card.TLabel", font=("Segoe UI Semibold", 9))
+        self.lbl_irrad_summary = tk.Label(self.metrics_card, text="Irradiazione giornaliera totale: -- kWh/m² (Media POA > 50 W/m²)", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 10))
         self.lbl_irrad_summary.pack(anchor="w", pady=(15, 0))
         
         # Bottom Grid: Results (Card)
-        bottom_card = ttk.Frame(main_frame, padding=15, style="Card.TFrame")
-        bottom_card.pack(fill="both", expand=True, pady=(15, 0))
+        bottom_card_border, bottom_card = self.create_card(main_frame, padding=15)
+        bottom_card_border.pack(fill="both", expand=True, pady=(15, 0))
         
         self.notebook = ttk.Notebook(bottom_card)
         self.notebook.pack(fill="both", expand=True)
@@ -355,11 +381,15 @@ class PRCalculatorGUI:
         tab1 = ttk.Frame(self.notebook, style="Card.TFrame")
         self.notebook.add(tab1, text="Dettaglio Inverter (Ultimo Giorno)")
         
-        lbl_sec_det = ttk.Label(tab1, text="Dettaglio Performance Ratio Compensato (36 Inverter)", style="Section.TLabel")
+        lbl_sec_det = tk.Label(tab1, text="Dettaglio Performance Ratio Compensato (36 Inverter)", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
         lbl_sec_det.pack(anchor="w", pady=(10, 10), padx=5)
         
-        table_frame = ttk.Frame(tab1, style="Card.TFrame")
-        table_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        # Table frame with 1px border
+        table_border = tk.Frame(tab1, bg="#dadce0")
+        table_border.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        table_frame = tk.Frame(table_border, bg="#ffffff")
+        table_frame.pack(fill="both", expand=True, padx=1, pady=1)
         
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side="right", fill="y")
@@ -374,16 +404,20 @@ class PRCalculatorGUI:
             align = "center" if c != "Codice Inverter" else "w"
             width = 110 if c != "Codice Inverter" else 150
             self.tree.column(c, width=width, anchor=align)
-
+ 
         # Tab 2: Daily Summary
         tab2 = ttk.Frame(self.notebook, style="Card.TFrame")
         self.notebook.add(tab2, text="Riepilogo Giorni Elaborati")
         
-        lbl_sec_days = ttk.Label(tab2, text="Risultati Giornalieri (Modalità Batch)", style="Section.TLabel")
+        lbl_sec_days = tk.Label(tab2, text="Risultati Giornalieri (Modalità Batch)", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
         lbl_sec_days.pack(anchor="w", pady=(10, 10), padx=5)
         
-        days_frame = ttk.Frame(tab2, style="Card.TFrame")
-        days_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        # Table frame with 1px border
+        days_border = tk.Frame(tab2, bg="#dadce0")
+        days_border.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        days_frame = tk.Frame(days_border, bg="#ffffff")
+        days_frame.pack(fill="both", expand=True, padx=1, pady=1)
         
         days_scrollbar = ttk.Scrollbar(days_frame)
         days_scrollbar.pack(side="right", fill="y")
@@ -398,24 +432,27 @@ class PRCalculatorGUI:
             self.tree_days.column(c, width=150, anchor="center")
             
         # Export Panel
-        export_frame = ttk.Frame(bottom_card, style="Card.TFrame")
+        export_frame = tk.Frame(bottom_card, bg="#ffffff")
         export_frame.pack(fill="x", pady=(10, 0))
         
         self.btn_export = ttk.Button(export_frame, text="Esporta Dati Completi su Excel...", state="disabled", command=self.export_to_excel)
         self.btn_export.pack(side="right")
         
-        self.lbl_export_status = ttk.Label(export_frame, text="", style="Card.TLabel", foreground=self.muted_text)
+        self.lbl_export_status = tk.Label(export_frame, text="", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         self.lbl_export_status.pack(side="left", anchor="center")
         
         # 4. Live Log Console Panel (Bottom-most)
-        log_card = ttk.Frame(main_frame, padding=12, style="Card.TFrame")
-        log_card.pack(fill="both", expand=True, pady=(15, 0))
+        log_card_border, log_card = self.create_card(main_frame, padding=12)
+        log_card_border.pack(fill="both", expand=True, pady=(15, 0))
         
-        lbl_sec_log = ttk.Label(log_card, text="Console Live Log di Esecuzione", style="Section.TLabel")
+        lbl_sec_log = tk.Label(log_card, text="Console Live Log di Esecuzione", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
         lbl_sec_log.pack(anchor="w", pady=(0, 5))
         
-        log_frame = ttk.Frame(log_card, style="Card.TFrame")
-        log_frame.pack(fill="both", expand=True)
+        log_border = tk.Frame(log_card, bg="#dadce0")
+        log_border.pack(fill="both", expand=True, pady=(5, 0))
+        
+        log_frame = tk.Frame(log_border, bg="#ffffff")
+        log_frame.pack(fill="both", expand=True, padx=1, pady=1)
         
         log_scrollbar = ttk.Scrollbar(log_frame)
         log_scrollbar.pack(side="right", fill="y")
@@ -423,10 +460,11 @@ class PRCalculatorGUI:
         self.log_widget = tk.Text(
             log_frame, 
             height=6, 
-            bg="#0b0f19", 
-            fg="#f1f5f9", 
-            insertbackground="#f1f5f9", 
+            bg="#f8f9fa", 
+            fg=self.text_color, 
+            insertbackground=self.text_color, 
             relief="flat", 
+            bd=0,
             font=("Consolas", 9), 
             yscrollcommand=log_scrollbar.set,
             wrap="word",
@@ -969,21 +1007,21 @@ class PRCalculatorGUI:
                 col_inv = 2 + i
                 col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
                 inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
-                ws_calc.Cells(111, col_calc).Formula = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
                 
                 # TX2 (Columns AB to AM -> 28 to 39)
                 col_calc = 27 + i
                 col_inv = 17 + i
                 col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
                 inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
-                ws_calc.Cells(111, col_calc).Formula = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
                 
                 # TX3 (Columns AO to AZ -> 41 to 52)
                 col_calc = 40 + i
                 col_inv = 32 + i
                 col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
                 inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
-                ws_calc.Cells(111, col_calc).Formula = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
                 
             print(f"[{date_str}] DEBUG: Scrittura dati PR_Calc e formule riga 111 completata.")
             
@@ -1121,10 +1159,6 @@ class PRCalculatorGUI:
                 ws_mother.Cells(4, 6).Value = "PR VCOM"
                 ws_mother.Cells(4, 7).Value = "External Availability\n[%]"
                 
-            # Write/update formulas for External Availability in day rows (5 to 4 + num_days)
-            for r in range(5, 5 + num_days):
-                ws_mother.Cells(r, 7).Formula = "=IF([@Colonna11]=\"\",0,([@Colonna11]/([@Colonna11]+[@Colonna13]+[@Colonna14]+[@Colonna15]))*100)"
-            
             # Dynamically format and adjust summary row in existing Mother file if needed!
             current_summary_row = None
             for r in range(30, 42):
@@ -1151,7 +1185,11 @@ class PRCalculatorGUI:
                 ws_mother.Cells(target_summary_row, 4).Formula = f"=AVERAGE(D5:D{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 5).Formula = f"=AVERAGE(E5:E{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 6).Formula = f"=AVERAGE(F5:F{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 7).Formula = f"=SUMIF(G5:G{target_summary_row-1},\"<>100\")/COUNTIF(G5:G{target_summary_row-1},\"<>100\")"
+                ws_mother.Cells(target_summary_row, 7).Formula = f"=SUMIF(G5:G{target_summary_row-1},\"<>0\")/COUNTIF(G5:G{target_summary_row-1},\"<>0\")"
+            
+            # Write/update formulas for External Availability in day rows (5 to 4 + num_days) after summary row has been adjusted
+            for r in range(5, 5 + num_days):
+                ws_mother.Cells(r, 7).Formula = "=IF([@Colonna11]=\"\",0,([@Colonna11]/([@Colonna11]+[@Colonna13]+[@Colonna14]+[@Colonna15]))*100)"
             
             # Change links natively via Excel to avoid openpyxl corruption if initialized new
             if initialized_new:
