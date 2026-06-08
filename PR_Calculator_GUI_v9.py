@@ -85,7 +85,7 @@ class RoundedCard(tk.Canvas):
         self.window_id = self.create_window(0, 0, window=self.content_frame, anchor="nw")
 
     def _draw(self, event):
-        self.delete("all")
+        self.delete("bg")
         w = event.width
         h = event.height
         r = self.radius
@@ -93,8 +93,8 @@ class RoundedCard(tk.Canvas):
         # Offsets
         x0, y0, x1, y1 = 1, 1, w - 2, h - 2
         
-        self._draw_round_rect(x0, y0, x1, y1, r, fill=self.border_color, outline=self.border_color)
-        self._draw_round_rect(x0 + 1, y0 + 1, x1 - 1, y1 - 1, r, fill=self.bg, outline=self.bg)
+        self._draw_round_rect(x0, y0, x1, y1, r, fill=self.border_color, outline=self.border_color, tags="bg")
+        self._draw_round_rect(x0 + 1, y0 + 1, x1 - 1, y1 - 1, r, fill=self.bg, outline=self.bg, tags="bg")
         
         margin = self.padding
         self.coords(self.window_id, margin, margin)
