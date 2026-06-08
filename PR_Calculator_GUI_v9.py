@@ -80,7 +80,7 @@ class PRCalculatorGUI:
         self.root.withdraw()
         self.root.update_idletasks()
         width = 1040
-        height = 680
+        height = 880
         x = (self.root.winfo_screenwidth() - width) // 2
         y = (self.root.winfo_screenheight() - height) // 2
         self.root.geometry(f"{width}x{height}+{x}+{y}")
@@ -1313,9 +1313,7 @@ class PRCalculatorGUI:
                 ws_mother.Cells(4, 3).Value = "Irradiance TX3"
 
             # Ensure number format for Irradiance columns is set to 4 decimal places (not date format inherited from Column A)
-            ws_mother.Columns(2).NumberFormat = "0.0000"
-            ws_mother.Columns(3).NumberFormat = "0.0000"
-            ws_mother.Columns(4).NumberFormat = "0.0000"
+            ws_mother.Range(f"B5:D{5+num_days-1}").NumberFormatLocal = "0,0000"
 
             # Programmatically ensure "PR VCOM" and "External Availability [%]" columns are present at Columns H and I
             h4_val = ws_mother.Cells(4, 8).Value
