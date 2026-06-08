@@ -1312,6 +1312,11 @@ class PRCalculatorGUI:
                 ws_mother.Cells(4, 2).Value = "Irradiance TX1"
                 ws_mother.Cells(4, 3).Value = "Irradiance TX3"
 
+            # Ensure number format for Irradiance columns is set to 4 decimal places (not date format inherited from Column A)
+            ws_mother.Columns(2).NumberFormat = "0.0000"
+            ws_mother.Columns(3).NumberFormat = "0.0000"
+            ws_mother.Columns(4).NumberFormat = "0.0000"
+
             # Programmatically ensure "PR VCOM" and "External Availability [%]" columns are present at Columns H and I
             h4_val = ws_mother.Cells(4, 8).Value
             if not (h4_val and "VCOM" in str(h4_val)):
