@@ -75,7 +75,16 @@ class PRCalculatorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Calcolatore Performance Ratio (PR) Fotovoltaico Mazara 01 - v8.0")
-        self.root.geometry("1020x940")
+        
+        # Center the window on the screen for a soft, user-oriented launch
+        self.root.withdraw()
+        self.root.update_idletasks()
+        width = 1040
+        height = 920
+        x = (self.root.winfo_screenwidth() - width) // 2
+        y = (self.root.winfo_screenheight() - height) // 2
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+        self.root.deiconify()
         self.root.configure(bg="#f8f9fa")
         
         # Ensure Windows taskbar and task manager correctly display the custom GET logo icon
@@ -274,6 +283,10 @@ class PRCalculatorGUI:
         version_badge = tk.Label(header_inner, text="v8.0", bg="#e8f0fe", fg="#1a73e8", font=("Segoe UI Semibold", 9), padx=8, pady=2)
         version_badge.pack(side="left", padx=12)
         
+        # Guide button on the top right with a ? logo
+        btn_guide = ttk.Button(header_inner, text="? Guida d'Uso", style="Secondary.TButton", command=self.show_guide)
+        btn_guide.pack(side="right", pady=10)
+        
         # Main container for body (with nice margins/padding)
         main_frame = tk.Frame(self.root, bg="#f8f9fa")
         main_frame.pack(side="top", fill="both", expand=True, padx=24, pady=20)
@@ -289,7 +302,11 @@ class PRCalculatorGUI:
         inputs_card_border.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         
         lbl_sec_in = tk.Label(inputs_card, text="Impostazioni di Calcolo", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
-        lbl_sec_in.pack(anchor="w", pady=(0, 12))
+        lbl_sec_in.pack(anchor="w", pady=(0, 4))
+        
+        # Add descriptive help text for inputs card
+        lbl_desc_in = tk.Label(inputs_card, text="Seleziona la cartella contenente i dati SCADA e configura i parametri.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
+        lbl_desc_in.pack(anchor="w", pady=(0, 10))
         
         # Folder row
         folder_frame = tk.Frame(inputs_card, bg="#ffffff")
@@ -364,7 +381,11 @@ class PRCalculatorGUI:
         self.lbl_irrad_summary = tk.Label(self.dummy_parent)
         
         lbl_sec_me = tk.Label(self.metrics_card, text="Tabella Riferimento Target PVSyst", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
-        lbl_sec_me.pack(anchor="w", pady=(0, 8))
+        lbl_sec_me.pack(anchor="w", pady=(0, 2))
+        
+        # Add descriptive help text for PVSyst reference table
+        lbl_desc_me = tk.Label(self.metrics_card, text="Valori teorici mensili di Target PR. Il mese attivo viene evidenziato in automatico.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
+        lbl_desc_me.pack(anchor="w", pady=(0, 8))
         
         # Table frame with 1px border
         pvsyst_table_border = tk.Frame(self.metrics_card, bg="#dadce0")
@@ -373,7 +394,7 @@ class PRCalculatorGUI:
         pvsyst_table_frame = tk.Frame(pvsyst_table_border, bg="#ffffff")
         pvsyst_table_frame.pack(fill="both", expand=True, padx=1, pady=1)
         
-        cols_pvsyst = ("Mese", "Target PR (Dec)", "Target PR (%)")
+        cols_pvsyst = ("Mese", "Target PR", "Target PR (%)")
         self.pvsyst_tree = ttk.Treeview(pvsyst_table_frame, columns=cols_pvsyst, show="headings", height=10)
         self.pvsyst_tree.pack(fill="both", expand=True)
         
@@ -411,7 +432,10 @@ class PRCalculatorGUI:
         self.notebook.add(tab1, text="Dettaglio Inverter (Ultimo Giorno)")
         
         lbl_sec_det = tk.Label(tab1, text="Dettaglio Performance Ratio Compensato (36 Inverter)", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
-        lbl_sec_det.pack(anchor="w", pady=(10, 10), padx=5)
+        lbl_sec_det.pack(anchor="w", pady=(10, 2), padx=5)
+        
+        lbl_desc_det = tk.Label(tab1, text="Analisi dettagliata per ciascuno dei 36 inverter attivi nell'impianto per l'ultimo giorno elaborato.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
+        lbl_desc_det.pack(anchor="w", pady=(0, 8), padx=5)
         
         # Table frame with 1px border
         table_border = tk.Frame(tab1, bg="#dadce0")
@@ -439,7 +463,10 @@ class PRCalculatorGUI:
         self.notebook.add(tab2, text="Riepilogo Giorni Elaborati")
         
         lbl_sec_days = tk.Label(tab2, text="Risultati Giornalieri (Modalità Batch)", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
-        lbl_sec_days.pack(anchor="w", pady=(10, 10), padx=5)
+        lbl_sec_days.pack(anchor="w", pady=(10, 2), padx=5)
+        
+        lbl_desc_days = tk.Label(tab2, text="Cronologia dei risultati giornalieri calcolati e salvati per il mese selezionato.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
+        lbl_desc_days.pack(anchor="w", pady=(0, 8), padx=5)
         
         # Table frame with 1px border
         days_border = tk.Frame(tab2, bg="#dadce0")
@@ -475,7 +502,10 @@ class PRCalculatorGUI:
         log_card_border.pack(fill="both", expand=True, pady=(15, 0))
         
         lbl_sec_log = tk.Label(log_card, text="Console Live Log di Esecuzione", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
-        lbl_sec_log.pack(anchor="w", pady=(0, 5))
+        lbl_sec_log.pack(anchor="w", pady=(0, 2))
+        
+        lbl_desc_log = tk.Label(log_card, text="Messaggi diagnostici in tempo reale sull'elaborazione dei file excel e calcoli.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
+        lbl_desc_log.pack(anchor="w", pady=(0, 6))
         
         log_border = tk.Frame(log_card, bg="#dadce0")
         log_border.pack(fill="both", expand=True, pady=(5, 0))
@@ -593,6 +623,22 @@ class PRCalculatorGUI:
                                 return
         except Exception:
             pass
+            
+    def show_guide(self):
+        html_path = get_resource_path("Manuale_Utente_PR_Calculator.html")
+        if os.path.exists(html_path):
+            import webbrowser
+            webbrowser.open(f"file:///{os.path.abspath(html_path)}")
+        else:
+            messagebox.showinfo(
+                "Guida Utente",
+                "Manuale Utente non trovato in locale.\n\n"
+                "Procedura d'uso:\n"
+                "1. Seleziona la cartella del mese (es. '2026 05').\n"
+                "2. La data e il Target PR PVSyst verranno rilevati in automatico.\n"
+                "3. Clicca su 'Calcola Performance Ratio' per elaborare i file SCADA.\n"
+                "4. Esporta i risultati su Excel tramite il pulsante in basso."
+            )
             
     def on_date_changed(self, *args):
         try:
@@ -1569,7 +1615,17 @@ class PRCalculatorGUI:
             self.notebook.select(0) # Go to Detailed Inverters tab
             
         self.lbl_status.config(text="Calcolo completato con successo!", foreground=self.success_color)
-        messagebox.showinfo("Successo", f"Calcolo del PR per il {res['date_str']} terminato con successo!\n\nMedia PR Inverter: {res['avg_inv_pr']:.3f}%")
+        
+        # Build detailed success report showing PR of each day processed
+        msg = f"Calcolo del PR per il {res['date_str']} terminato con successo!\n\n"
+        if hasattr(self, "all_days_results") and len(self.all_days_results) > 1:
+            msg += "Riepilogo PR Giornaliero (Media PR Inverter):\n"
+            for d in self.all_days_results:
+                msg += f"- {d['date_str']}: {d['avg_inv_pr']:.3f}%\n"
+        else:
+            msg += f"Media PR Inverter: {res['avg_inv_pr']:.3f}%"
+            
+        messagebox.showinfo("Successo", msg)
         
     def update_ui_on_failure(self, error_message):
         self.btn_calculate.config(state="normal")
