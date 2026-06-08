@@ -961,7 +961,31 @@ class PRCalculatorGUI:
                 ws_calc.Cells(r, 10).Formula = f"=IFERROR(IF(AND(D{r}>0,F{r}>0),ABS(D{r}-F{r})/AVERAGE(D{r},F{r}),0), 0)"
                 ws_calc.Cells(r, 13).Formula = f"=IFERROR((L{r}-K{r})*1000, 0)"
                 
-            print(f"[{date_str}] DEBUG: Scrittura dati PR_Calc completata.")
+            # Programmatically enforce correct inverter PR formulas in row 111 (without losses)
+            import openpyxl.utils
+            for i in range(1, 13):
+                # TX1 (Columns O to Z -> 15 to 26)
+                col_calc = 14 + i
+                col_inv = 2 + i
+                col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
+                inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
+                ws_calc.Cells(111, col_calc).Formula = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                
+                # TX2 (Columns AB to AM -> 28 to 39)
+                col_calc = 27 + i
+                col_inv = 17 + i
+                col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
+                inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
+                ws_calc.Cells(111, col_calc).Formula = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                
+                # TX3 (Columns AO to AZ -> 41 to 52)
+                col_calc = 40 + i
+                col_inv = 32 + i
+                col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
+                inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
+                ws_calc.Cells(111, col_calc).Formula = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                
+            print(f"[{date_str}] DEBUG: Scrittura dati PR_Calc e formule riga 111 completata.")
             
             # Write Inverter_data columns
             tx1_vals = [[float(r[f"TX1-INV-{i}"]) for i in range(1, 13)] for r in calc_rows_ordered]
@@ -1099,7 +1123,7 @@ class PRCalculatorGUI:
                 
             # Write/update formulas for External Availability in day rows (5 to 4 + num_days)
             for r in range(5, 5 + num_days):
-                ws_mother.Cells(r, 7).Formula = "=([@Colonna11]/([@Colonna11]+[@Colonna13]+[@Colonna14]+[@Colonna15]))*100"
+                ws_mother.Cells(r, 7).Formula = "=IF([@Colonna11]=\"\",0,([@Colonna11]/([@Colonna11]+[@Colonna13]+[@Colonna14]+[@Colonna15]))*100)"
             
             # Dynamically format and adjust summary row in existing Mother file if needed!
             current_summary_row = None
