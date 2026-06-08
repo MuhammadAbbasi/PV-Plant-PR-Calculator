@@ -80,7 +80,7 @@ class PRCalculatorGUI:
         self.root.withdraw()
         self.root.update_idletasks()
         width = 1040
-        height = 920
+        height = 680
         x = (self.root.winfo_screenwidth() - width) // 2
         y = (self.root.winfo_screenheight() - height) // 2
         self.root.geometry(f"{width}x{height}+{x}+{y}")
@@ -369,6 +369,13 @@ class PRCalculatorGUI:
         self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         self.lbl_status.pack(anchor="w", pady=(2, 0))
         
+        # Export Button (moved from the bottom panel)
+        self.btn_export = ttk.Button(inputs_card, text="Esporta Dati Completi su Excel...", style="Secondary.TButton", state="disabled", command=self.export_to_excel)
+        self.btn_export.pack(fill="x", pady=(10, 0))
+        
+        self.lbl_export_status = tk.Label(inputs_card, text="", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
+        self.lbl_export_status.pack(anchor="w", pady=(2, 0))
+        
         # 2. Metrics Frame (Right Card - now containing PVSyst Table)
         metrics_card_border, self.metrics_card = self.create_card(top_grid, padding=15)
         metrics_card_border.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
@@ -420,11 +427,10 @@ class PRCalculatorGUI:
         for idx, (m, dec, pct) in enumerate(months_data, start=1):
             self.pvsyst_tree.insert("", "end", iid=f"m{idx}", values=(m, dec, pct))
         
-        # Bottom Grid: Results (Card)
-        bottom_card_border, bottom_card = self.create_card(main_frame, padding=15)
-        bottom_card_border.pack(fill="both", expand=True, pady=(15, 0))
+        # Dummy parent for keeping the bottom results tabs/notebook and tables without packing them
+        dummy_bottom = tk.Frame(self.root)
         
-        self.notebook = ttk.Notebook(bottom_card)
+        self.notebook = ttk.Notebook(dummy_bottom)
         self.notebook.pack(fill="both", expand=True)
         
         # Tab 1: Detailed Inverters
@@ -487,17 +493,7 @@ class PRCalculatorGUI:
             self.tree_days.heading(c, text=c)
             self.tree_days.column(c, width=150, anchor="center")
             
-        # Export Panel
-        export_frame = tk.Frame(bottom_card, bg="#ffffff")
-        export_frame.pack(fill="x", pady=(10, 0))
-        
-        self.btn_export = ttk.Button(export_frame, text="Esporta Dati Completi su Excel...", state="disabled", command=self.export_to_excel)
-        self.btn_export.pack(side="right")
-        
-        self.lbl_export_status = tk.Label(export_frame, text="", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
-        self.lbl_export_status.pack(side="left", anchor="center")
-        
-        # 4. Live Log Console Panel (Bottom-most)
+        # 4. Live Log Console Panel (Bottom-most, packed directly under top grid now)
         log_card_border, log_card = self.create_card(main_frame, padding=12)
         log_card_border.pack(fill="both", expand=True, pady=(15, 0))
         
