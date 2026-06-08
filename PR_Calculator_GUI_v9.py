@@ -1420,6 +1420,11 @@ class PRCalculatorGUI:
                 ws_mother.Cells(target_summary_row, 10).Formula = f"=SUM(J5:J{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 11).Formula = f"=SUM(K5:K{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 12).Formula = f"=SUM(L5:L{target_summary_row-1})"
+                
+                # Format summary row cells as numbers (prevent date formatting)
+                ws_mother.Range(f"B{target_summary_row}:D{target_summary_row}").NumberFormatLocal = "0,0000"
+                ws_mother.Cells(target_summary_row, 5).NumberFormatLocal = "0,00"
+                ws_mother.Range(f"J{target_summary_row}:L{target_summary_row}").NumberFormatLocal = "0,00"
             
             # Write/update formulas for External Availability in day rows (5 to 4 + num_days) after summary row has been adjusted
             for r in range(5, 5 + num_days):
