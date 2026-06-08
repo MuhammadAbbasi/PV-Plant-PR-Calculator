@@ -206,6 +206,14 @@ class PRCalculatorGUI:
         # Setup GUI elements
         self.create_layout()
         
+        # Select active month row in PVSyst reference treeview on startup
+        try:
+            self.pvsyst_tree.selection_set(f"m{current_month}")
+            self.pvsyst_tree.focus(f"m{current_month}")
+            self.pvsyst_tree.see(f"m{current_month}")
+        except Exception:
+            pass
+        
         # Redirect stdout/stderr to Live Log Widget
         self.stdout_redirector = RedirectText(self.root, self.log_widget, sys.stdout)
         self.stderr_redirector = RedirectText(self.root, self.log_widget, sys.stderr)
@@ -344,47 +352,52 @@ class PRCalculatorGUI:
         self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         self.lbl_status.pack(anchor="w", pady=(2, 0))
         
-        # 2. Metrics Frame (Right Card)
+        # 2. Metrics Frame (Right Card - now containing PVSyst Table)
         metrics_card_border, self.metrics_card = self.create_card(top_grid, padding=15)
         metrics_card_border.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
         
-        lbl_sec_me = tk.Label(self.metrics_card, text="Sintesi dei Risultati Chiave", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
-        lbl_sec_me.pack(anchor="w", pady=(0, 15))
+        # Dummy parent for keeping label references without packing them to avoid breaking update logic
+        self.dummy_parent = tk.Frame(self.root)
+        self.lbl_avg_pr_val = tk.Label(self.dummy_parent)
+        self.lbl_comp_pr_val = tk.Label(self.dummy_parent)
+        self.lbl_pvsyst_target_val = tk.Label(self.dummy_parent)
+        self.lbl_irrad_summary = tk.Label(self.dummy_parent)
         
-        # 3 Metrics Layout
-        metrics_grid = tk.Frame(self.metrics_card, bg="#ffffff")
-        metrics_grid.pack(fill="both", expand=True)
-        metrics_grid.columnconfigure(0, weight=1)
-        metrics_grid.columnconfigure(1, weight=1)
-        metrics_grid.columnconfigure(2, weight=1)
+        lbl_sec_me = tk.Label(self.metrics_card, text="Tabella Riferimento Target PVSyst", bg="#ffffff", fg=self.accent_color, font=("Segoe UI Semibold", 12, "bold"))
+        lbl_sec_me.pack(anchor="w", pady=(0, 8))
         
-        # Card for Comp Average Inverter PR
-        card_avg_border, card_avg = self.create_card(metrics_grid, padding=10)
-        card_avg_border.grid(row=0, column=0, padx=5, sticky="nsew")
-        tk.Label(card_avg, text="MEDIA PR INVERTER", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
-        self.lbl_avg_pr_val = tk.Label(card_avg, text="-- %", bg="#ffffff", fg=self.success_color, font=("Segoe UI", 22, "bold"))
-        self.lbl_avg_pr_val.pack(anchor="center", pady=10)
-        tk.Label(card_avg, text="Media dei 36 PR compensati", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
+        # Table frame with 1px border
+        pvsyst_table_border = tk.Frame(self.metrics_card, bg="#dadce0")
+        pvsyst_table_border.pack(fill="both", expand=True)
         
-        # Card for Comp RAW PR
-        card_comp_border, card_comp = self.create_card(metrics_grid, padding=10)
-        card_comp_border.grid(row=0, column=1, padx=5, sticky="nsew")
-        tk.Label(card_comp, text="PR GREZZO COMPENSATO", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
-        self.lbl_comp_pr_val = tk.Label(card_comp, text="-- %", bg="#ffffff", fg=self.accent_color, font=("Segoe UI", 22, "bold"))
-        self.lbl_comp_pr_val.pack(anchor="center", pady=10)
-        tk.Label(card_comp, text="Totale impianto con perdite", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
+        pvsyst_table_frame = tk.Frame(pvsyst_table_border, bg="#ffffff")
+        pvsyst_table_frame.pack(fill="both", expand=True, padx=1, pady=1)
         
-        # Card for PVSyst Target PR
-        card_pvsyst_border, card_pvsyst = self.create_card(metrics_grid, padding=10)
-        card_pvsyst_border.grid(row=0, column=2, padx=5, sticky="nsew")
-        tk.Label(card_pvsyst, text="TARGET PR PVSYST", bg="#ffffff", fg=self.muted_text, font=("Segoe UI Semibold", 9)).pack(anchor="center")
-        self.lbl_pvsyst_target_val = tk.Label(card_pvsyst, text="-- %", bg="#ffffff", fg=self.warn_color, font=("Segoe UI", 22, "bold"))
-        self.lbl_pvsyst_target_val.pack(anchor="center", pady=10)
-        tk.Label(card_pvsyst, text="PR di riferimento da PVSyst", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 8)).pack(anchor="center")
+        cols_pvsyst = ("Mese", "Target PR (Dec)", "Target PR (%)")
+        self.pvsyst_tree = ttk.Treeview(pvsyst_table_frame, columns=cols_pvsyst, show="headings", height=10)
+        self.pvsyst_tree.pack(fill="both", expand=True)
         
-        # Irradiance summary line
-        self.lbl_irrad_summary = tk.Label(self.metrics_card, text="Irradiazione giornaliera totale: -- kWh/m² (Media POA > 50 W/m²)", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 10))
-        self.lbl_irrad_summary.pack(anchor="w", pady=(15, 0))
+        for c in cols_pvsyst:
+            self.pvsyst_tree.heading(c, text=c)
+            align = "w" if c == "Mese" else "center"
+            self.pvsyst_tree.column(c, width=120, anchor=align)
+            
+        months_data = [
+            ("Gennaio", "0.904", "90.4%"),
+            ("Febbraio", "0.896", "89.6%"),
+            ("Marzo", "0.897", "89.7%"),
+            ("Aprile", "0.868", "86.8%"),
+            ("Maggio", "0.832", "83.2%"),
+            ("Giugno", "0.833", "83.3%"),
+            ("Luglio", "0.820", "82.0%"),
+            ("Agosto", "0.828", "82.8%"),
+            ("Settembre", "0.852", "85.2%"),
+            ("Ottobre", "0.876", "87.6%"),
+            ("Novembre", "0.894", "89.4%"),
+            ("Dicembre", "0.900", "90.0%")
+        ]
+        for idx, (m, dec, pct) in enumerate(months_data, start=1):
+            self.pvsyst_tree.insert("", "end", iid=f"m{idx}", values=(m, dec, pct))
         
         # Bottom Grid: Results (Card)
         bottom_card_border, bottom_card = self.create_card(main_frame, padding=15)
@@ -603,6 +616,13 @@ class PRCalculatorGUI:
                 }
                 if month_val in pvsyst_defaults:
                     self.pvsyst_pr_var.set(f"{pvsyst_defaults[month_val]:.3f}")
+                    # Highlight matching row in the PVSyst reference treeview
+                    try:
+                        self.pvsyst_tree.selection_set(f"m{month_val}")
+                        self.pvsyst_tree.focus(f"m{month_val}")
+                        self.pvsyst_tree.see(f"m{month_val}")
+                    except Exception:
+                        pass
         except Exception:
             pass
             
