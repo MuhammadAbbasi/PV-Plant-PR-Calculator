@@ -1409,10 +1409,17 @@ class PRCalculatorGUI:
                     del_end = current_summary_row - 1
                     ws_mother.Rows(f"{del_start}:{del_end}").Delete()
                     
+                ws_mother.Cells(target_summary_row, 2).Formula = f"=SUM(B5:B{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 3).Formula = f"=SUM(C5:C{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 4).Formula = f"=SUM(D5:D{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 5).Formula = f"=SUM(E5:E{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 6).Formula = f"=AVERAGE(F5:F{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 7).Formula = f"=AVERAGE(G5:G{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 8).Formula = f"=AVERAGE(H5:H{target_summary_row-1})"
                 ws_mother.Cells(target_summary_row, 9).Formula = f"=SUMIF(I5:I{target_summary_row-1},\"<>0\")/COUNTIF(I5:I{target_summary_row-1},\"<>0\")"
+                ws_mother.Cells(target_summary_row, 10).Formula = f"=SUM(J5:J{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 11).Formula = f"=SUM(K5:K{target_summary_row-1})"
+                ws_mother.Cells(target_summary_row, 12).Formula = f"=SUM(L5:L{target_summary_row-1})"
             
             # Write/update formulas for External Availability in day rows (5 to 4 + num_days) after summary row has been adjusted
             for r in range(5, 5 + num_days):
