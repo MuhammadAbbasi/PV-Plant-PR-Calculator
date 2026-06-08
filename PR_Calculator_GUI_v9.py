@@ -83,6 +83,13 @@ class RoundedCard(tk.Canvas):
         
         self.content_frame = tk.Frame(self, bg=self.bg, bd=0, highlightthickness=0)
         self.window_id = self.create_window(0, 0, window=self.content_frame, anchor="nw")
+        self.content_frame.bind("<Configure>", self._on_content_configure)
+
+    def _on_content_configure(self, event):
+        margin = self.padding
+        req_w = self.content_frame.winfo_reqwidth() + 2 * margin
+        req_h = self.content_frame.winfo_reqheight() + 2 * margin
+        self.config(width=req_w, height=req_h)
 
     def _draw(self, event):
         self.delete("bg")
