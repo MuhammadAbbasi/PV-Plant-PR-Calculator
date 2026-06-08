@@ -500,6 +500,49 @@ class PRCalculatorGUI:
             if not folder or not os.path.exists(folder):
                 return
                 
+            # 1. Try to read from any Excel file inside the folder or its subdirectories
+            excel_files = glob.glob(os.path.join(folder, "*.xlsx"))
+            if not excel_files:
+                # Check subdirectories (like '01' daily folder)
+                for subd in os.listdir(folder):
+                    subd_path = os.path.join(folder, subd)
+                    if os.path.isdir(subd_path) and subd.isdigit():
+                        excel_files = glob.glob(os.path.join(subd_path, "*.xlsx"))
+                        if excel_files:
+                            break
+                            
+            if excel_files:
+                import openpyxl
+                import datetime
+                import re
+                for file_path in excel_files[:3]:  # check up to 3 files to be fast
+                    try:
+                        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                        sheet = wb.active
+                        found = False
+                        for row in sheet.iter_rows(max_row=30, max_col=10, values_only=True):
+                            for cell in row:
+                                if isinstance(cell, (datetime.datetime, datetime.date)):
+                                    self.date_var.set(f"{cell.year}-{cell.month:02d}-{cell.day:02d}")
+                                    found = True
+                                    break
+                                if isinstance(cell, str):
+                                    m = re.search(r'\b(\d{4})[-/](0[1-9]|1[0-2])[-/](\d{2,4})\b', cell)
+                                    if m:
+                                        self.date_var.set(f"{m.group(1)}-{m.group(2)}-{int(m.group(3)):02d}")
+                                        found = True
+                                        break
+                                    m2 = re.search(r'\b(\d{1,2})[-/](0[1-9]|1[0-2])[-/](\d{4})\b', cell)
+                                    if m2:
+                                        self.date_var.set(f"{m2.group(3)}-{m2.group(2)}-{int(m2.group(1)):02d}")
+                                        found = True
+                                        break
+                            if found:
+                                return
+                    except Exception:
+                        continue
+
+            # 2. Fallback to folder name / path parsing
             basename = os.path.basename(folder.rstrip("\\/"))
             parent = os.path.dirname(folder.rstrip("\\/"))
             parent_name = os.path.basename(parent)
