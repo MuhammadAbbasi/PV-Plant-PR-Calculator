@@ -10,17 +10,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #0b0f19;
-            --bg-surface: #151c2c;
-            --bg-card: #1e293b;
-            --border-color: #334155;
-            --border-hover: #c8ad55;
-            --accent-cyan: #00adb5;
-            --accent-green: #10b981;
-            --accent-orange: #c8ad55;
-            --accent-purple: #8b5cf6;
-            --text-main: #f1f5f9;
-            --text-muted: #94a3b8;
+            --bg-base: #f8f9fa;
+            --bg-surface: #ffffff;
+            --bg-card: #ffffff;
+            --border-color: #dadce0;
+            --border-hover: #1a73e8;
+            --accent-cyan: #007b83;
+            --accent-green: #137333;
+            --accent-orange: #b06000;
+            --accent-purple: #681da8;
+            --text-main: #202124;
+            --text-muted: #5f6368;
             --font-main: 'Inter', sans-serif;
             --font-head: 'Outfit', sans-serif;
         }
@@ -42,10 +42,10 @@
 
         /* Glassmorphism Header */
         header {
-            background: rgba(11, 15, 25, 0.85);
+            background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border-bottom: 2px solid var(--border-hover);
+            border-bottom: 2px solid var(--border-color);
             position: sticky;
             top: 0;
             z-index: 100;
@@ -65,7 +65,7 @@
             font-family: var(--font-head);
             font-weight: 800;
             font-size: 1.8rem;
-            background: linear-gradient(135deg, #c8ad55, #10b981);
+            background: linear-gradient(135deg, #1a73e8, #137333);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             letter-spacing: -0.5px;
@@ -98,14 +98,14 @@
 
         .tab-btn:hover {
             color: var(--text-main);
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(0, 0, 0, 0.05);
         }
 
         .tab-btn.active {
-            color: #0b0f19;
-            background: var(--accent-orange);
+            color: #ffffff;
+            background: var(--border-hover);
             border-color: var(--border-hover);
-            box-shadow: 0 4px 15px rgba(200, 173, 85, 0.25);
+            box-shadow: 0 4px 15px rgba(26, 115, 232, 0.25);
         }
 
         /* Main Container */
@@ -130,7 +130,7 @@
         /* Grid Layouts */
         .hero-section {
             display: grid;
-            grid-template-columns: 1.2fr 1fr;
+            grid-template-columns: 1.2fr 1.1fr;
             gap: 3rem;
             align-items: flex-start;
             margin-bottom: 3rem;
@@ -138,10 +138,10 @@
 
         .image-card {
             background: var(--bg-surface);
-            border: 2px solid var(--border-hover);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 1.5rem;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
             position: sticky;
             top: 100px;
         }
@@ -149,7 +149,7 @@
         .image-card img {
             width: 100%;
             border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-color);
         }
 
         .image-title {
@@ -178,7 +178,7 @@
             cursor: pointer;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
         }
 
         .callout-card::before {
@@ -188,19 +188,19 @@
             top: 0;
             bottom: 0;
             width: 5px;
-            background: var(--accent-orange);
+            background: var(--border-hover);
             opacity: 0.5;
         }
 
         .callout-card:hover, .callout-card.active {
-            background: rgba(200, 173, 85, 0.08);
+            background: rgba(26, 115, 232, 0.04);
             border-color: var(--border-hover);
             transform: translateX(5px);
         }
 
         .callout-card:hover::before, .callout-card.active::before {
             opacity: 1;
-            background: var(--accent-orange);
+            background: var(--border-hover);
         }
 
         .callout-header {
@@ -211,8 +211,8 @@
         }
 
         .badge {
-            background: var(--accent-orange);
-            color: #0b0f19;
+            background: var(--border-hover);
+            color: #ffffff;
             font-family: var(--font-head);
             font-weight: 700;
             width: 32px;
@@ -222,7 +222,7 @@
             align-items: center;
             justify-content: center;
             font-size: 1rem;
-            box-shadow: 0 0 10px rgba(200, 173, 85, 0.3);
+            box-shadow: 0 0 10px rgba(26, 115, 232, 0.2);
         }
 
         .card-title {
@@ -235,7 +235,7 @@
         .card-desc {
             color: var(--text-muted);
             font-size: 0.95rem;
-            padding-left: 3rem;
+            padding-left: 3.25rem;
         }
 
         /* Metric Cards */
@@ -247,14 +247,14 @@
         }
 
         .metric-card {
-            background: linear-gradient(145deg, #151c2c, #0b0f19);
-            border: 2px solid var(--border-hover);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 2rem;
             text-align: center;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
         }
 
         .metric-card::before {
@@ -267,7 +267,7 @@
         }
 
         .metric-card:nth-child(1)::before { background: var(--accent-green); }
-        .metric-card:nth-child(2)::before { background: var(--accent-cyan); }
+        .metric-card:nth-child(2)::before { background: var(--border-hover); }
         .metric-card:nth-child(3)::before { background: var(--accent-orange); }
 
         .metric-val {
@@ -278,7 +278,7 @@
         }
 
         .metric-card:nth-child(1) .metric-val { color: var(--accent-green); }
-        .metric-card:nth-child(2) .metric-val { color: var(--accent-cyan); }
+        .metric-card:nth-child(2) .metric-val { color: var(--border-hover); }
         .metric-card:nth-child(3) .metric-val { color: var(--accent-orange); }
 
         .metric-lbl {
@@ -296,11 +296,11 @@
         /* Styled Tables */
         .table-container {
             background: var(--bg-surface);
-            border: 2px solid var(--border-hover);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             overflow: hidden;
             margin-top: 2rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
         }
 
         table {
@@ -310,17 +310,17 @@
         }
 
         th {
-            background: #0b0f19;
+            background: #f1f3f4;
             padding: 1.25rem 1.5rem;
             font-family: var(--font-head);
             font-weight: 700;
-            color: var(--accent-orange);
+            color: var(--text-main);
             border-bottom: 1px solid var(--border-color);
         }
 
         td {
             padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border-color);
             color: var(--text-muted);
             font-weight: 500;
         }
@@ -330,7 +330,7 @@
         }
 
         tr:hover td {
-            background: rgba(200, 173, 85, 0.1);
+            background: rgba(26, 115, 232, 0.04);
             color: var(--text-main);
         }
 
@@ -344,10 +344,10 @@
 
         .accordion-item {
             background: var(--bg-surface);
-            border: 2px solid var(--border-color);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
         }
 
         .accordion-header {
@@ -360,12 +360,12 @@
             font-size: 1.15rem;
             font-weight: 700;
             color: var(--text-main);
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(0, 0, 0, 0.01);
         }
 
         .accordion-header:hover {
-            color: var(--accent-orange);
-            background: rgba(200, 173, 85, 0.15);
+            color: var(--border-hover);
+            background: rgba(26, 115, 232, 0.04);
         }
 
         .accordion-content {
@@ -379,13 +379,13 @@
         .accordion-item.active .accordion-content {
             padding: 1.5rem;
             max-height: 500px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid var(--border-color);
         }
 
         /* Footer */
         footer {
             margin-top: 5rem;
-            border-top: 2px solid var(--border-hover);
+            border-top: 1px solid var(--border-color);
             padding: 3rem 2rem;
             text-align: center;
             color: var(--text-muted);
@@ -405,7 +405,7 @@
         <div class="nav-tabs">
             <button class="tab-btn active" onclick="switchTab('panoramica')">🖥️ Panoramica & Aree</button>
             <button class="tab-btn" onclick="switchTab('parametri')">⚙️ Parametri Calcolo</button>
-            <button class="tab-btn" onclick="switchTab('cruscotto')">📊 Cruscotto Risultati</button>
+            <button class="tab-btn" onclick="switchTab('cruscotto')">📊 Target PVSyst</button>
             <button class="tab-btn" onclick="switchTab('inverter')">📑 Dettaglio Inverter</button>
             <button class="tab-btn" onclick="switchTab('faq')">🛠️ Troubleshooting & FAQ</button>
         </div>
@@ -418,22 +418,22 @@
                 <!-- Interactive Callouts -->
                 <div class="callout-list">
                     <div style="margin-bottom: 1rem;">
-                        <h1 style="font-family: var(--font-head); font-size: 2.2rem; color: #fff; margin-bottom: 0.5rem;">Guida Interattiva al Software</h1>
+                        <h1 style="font-family: var(--font-head); font-size: 2.2rem; color: var(--text-main); margin-bottom: 0.5rem;">Guida Interattiva al Software</h1>
                         <p style="color: var(--text-muted);">Clicca sulle schede sottostanti per esplorare le funzionalità corrispondenti ai numeri sull'interfaccia grafica.</p>
                     </div>
 
                     <div class="callout-card active" onclick="highlightBadge(1, this)">
                         <div class="callout-header">
                             <div class="badge" style="background: #00adb5;">1</div>
-                            <div class="card-title">Intestazione e Brand GET SRL</div>
+                            <div class="card-title">Intestazione, Logo GET SRL, e pulsante ? Guida d'Uso</div>
                         </div>
-                        <div class="card-desc">Mostra il logo ufficiale aziendale e il titolo del software di automazione per il calcolo delle prestazioni fotovoltaiche dell'impianto Mazara 01.</div>
+                        <div class="card-desc">Mostra il logo ufficiale aziendale, il titolo del software di automazione per il calcolo delle prestazioni fotovoltaiche dell'impianto Mazara 01, e include un pulsante di accesso rapido per aprire questo manuale nel browser in qualsiasi momento.</div>
                     </div>
 
                     <div class="callout-card" onclick="highlightBadge(2, this)">
                         <div class="callout-header">
                             <div class="badge" style="background: #ff9800;">2</div>
-                            <div class="card-title">Selezione Cartella di Input (Pulsante Browse)</div>
+                            <div class="card-title">Selezione Cartella di Input (Pulsante Sfoglia...)</div>
                         </div>
                         <div class="card-desc">Apre l'esplora risorse per selezionare la cartella dei dati grezzi SCADA. Selezionando la cartella mensile (es. <code>2026 05</code>), il software attiva automaticamente l'elaborazione ciclica batch per l'intero mese!</div>
                     </div>
@@ -457,7 +457,7 @@
                     <div class="callout-card" onclick="highlightBadge(5, this)">
                         <div class="callout-header">
                             <div class="badge" style="background: #4caf50;">5</div>
-                            <div class="card-title">Pulsante Principale [ Calculate Performance Ratio ]</div>
+                            <div class="card-title">Pulsante Principale [ Calcola Performance Ratio ]</div>
                         </div>
                         <div class="card-desc">Avvia il motore di calcolo in background: filtra e pulisce i dati numerici, calcola le perdite per indisponibilità, genera i file giornalieri e aggiorna in tempo reale il file Madre mensile tramite OLE/COM.</div>
                     </div>
@@ -465,17 +465,17 @@
                     <div class="callout-card" onclick="highlightBadge(6, this)">
                         <div class="callout-header">
                             <div class="badge" style="background: #2196f3;">6</div>
-                            <div class="card-title">Cruscotto Risultati Sintetici</div>
+                            <div class="card-title">Tabella Riferimento Target PVSyst</div>
                         </div>
-                        <div class="card-desc">Mostra in evidenza i tre valori chiave: Media PR dei 36 Inverter (Verde), Performance Ratio Compensato Ufficiale (Ciano) e PR Non Compensato Grezzo (Arancione).</div>
+                        <div class="card-desc">Mostra la tabella dei Target PR previsti da PVSyst per ciascun mese dell'anno. Quando viene inserita o rilevata una data, il mese corrispondente viene evidenziato ed il valore del Target PR viene copiato in automatico nel campo di calcolo.</div>
                     </div>
 
                     <div class="callout-card" onclick="highlightBadge(7, this)">
                         <div class="callout-header">
                             <div class="badge" style="background: #00bcd4;">7</div>
-                            <div class="card-title">Tabella Dettagliata 36 Inverter</div>
+                            <div class="card-title">Pannello Risultati (Dettaglio Inverter e Riepilogo Giornaliero)</div>
                         </div>
-                        <div class="card-desc">Tabella navigabile con barre di scorrimento che mostra potenza di targa, energia prodotta, stima perdite e Performance Ratio compensato per ciascuna delle 36 macchine.</div>
+                        <div class="card-desc">Sezioni a schede interattive che mostrano i dettagli delle singole 36 macchine (potenza, energia prodotta, perdite e PR compensato) e il riepilogo giornaliero dei giorni analizzati con relativi irraggiamenti e valori PR medi.</div>
                     </div>
 
                     <div class="callout-card" onclick="highlightBadge(8, this)">
@@ -491,7 +491,7 @@
                             <div class="badge" style="background: #673ab7;">9</div>
                             <div class="card-title">Console Live Log in Tempo Reale</div>
                         </div>
-                        <div class="card-desc">Visualizza i log operativi del motore Python/COM, notificando caricamenti di file, percorsi UNC e completamento dei calcoli.</div>
+                        <div class="card-desc">Visualizza i log operativi del motore Python/COM, notificando caricamenti di file, percorsi UNC e avanzamento delle righe calcolate in tempo reale.</div>
                     </div>
 
                 </div>
@@ -522,25 +522,25 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">Input Folder Path</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">Input Folder Path</td>
                             <td>Percorso Windows (Locale o UNC)</td>
                             <td>Cartella contenente i file di log SCADA esportati in formato Excel.</td>
                             <td>Il motore rileva automaticamente se si tratta di un giorno singolo o di un mese batch per avviare il calcolo sequenziale.</td>
                         </tr>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">Date (YYYY-MM-DD)</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">Date (YYYY-MM-DD)</td>
                             <td>Stringa ISO 8601</td>
                             <td>Data di riferimento dell'analisi.</td>
-                            <td>Serve per cercare i file meteo e di regolazione, e per determinare il posizionamento esatto della riga nel file Madre.</td>
+                            <td>Serve per cercare i file meteo e di regolazione, e per determinare il posizionamento esatto della riga nel file Madre. Rileva automaticamente il mese per aggiornare il Target PVSyst.</td>
                         </tr>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">PVSyst Monthly PR</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">PVSyst Monthly PR</td>
                             <td>Decimale (es. 0.897)</td>
                             <td>Performance Ratio teorico atteso da simulazione di progetto PVSyst.</td>
-                            <td>Utilizzato nella formula di stima delle perdite per indisponibilità e curtailment.</td>
+                            <td>Utilizzato nella formula di stima delle perdite per indisponibilità e curtailment. Si aggiorna dinamicamente in base alla data impostata.</td>
                         </tr>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">Min Irradiance</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">Min Irradiance</td>
                             <td>Intero (W/m²)</td>
                             <td>Soglia di irraggiamento solare sul piano del modulo (POA).</td>
                             <td>Sotto questa soglia (es. 50 W/m²), i calcoli di perdita di energia vengono azzerati per evitare sovrastime notturne o al crepuscolo.</td>
@@ -550,27 +550,96 @@
             </div>
         </div>
 
-        <!-- TAB 3: CRUSCOTTO RISULTATI -->
+        <!-- TAB 3: TARGET PVSYST -->
         <div id="tab-cruscotto" class="tab-content">
-            <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem;">📊 Indicatori Chiave (KPI)</h1>
-            <p style="color: var(--text-muted);">Spiegazione dettagliata dei tre macro-indicatori di performance restituiti dal cruscotto.</p>
+            <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem;">📊 Target Performance Ratio PVSyst</h1>
+            <p style="color: var(--text-muted);">Tabella dei valori mensili contrattuali attesi per l'anno in corso per il Performance Ratio di impianto.</p>
 
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-lbl">AVG INVERTER PR</div>
-                    <div class="metric-val">88.5%</div>
-                    <div class="metric-sub">Media aritmetica pura dei 36 inverter compensati. Riflette l'efficienza di conversione DC/AC delle macchine al netto di guasti di rete esterni.</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-lbl">COMPENSATED RAW PR</div>
-                    <div class="metric-val">87.2%</div>
-                    <div class="metric-sub">Performance Ratio di Impianto Contrattuale. Calcolato sommando l'energia immessa in rete alle perdite stimate per indisponibilità e curtailment.</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-lbl">UNCOMPENSATED PR</div>
-                    <div class="metric-val">81.4%</div>
-                    <div class="metric-sub">Performance Ratio Grezzo. Calcolato unicamente sull'energia attiva contata dai misuratori SATAC, senza alcuna compensazione di perdite esterne.</div>
-                </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mese</th>
+                            <th>Valore Target (Decimale)</th>
+                            <th>Valore Target (%)</th>
+                            <th>Descrizione e Applicazione</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Gennaio</td>
+                            <td>0.904</td>
+                            <td>90.4%</td>
+                            <td>Periodo invernale, basse temperature operative dei moduli (efficienza massima).</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Febbraio</td>
+                            <td>0.896</td>
+                            <td>89.6%</td>
+                            <td>Ottime prestazioni per clima fresco.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Marzo</td>
+                            <td>0.897</td>
+                            <td>89.7%</td>
+                            <td>Equinozio di primavera, condizioni stabili.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Aprile</td>
+                            <td>0.868</td>
+                            <td>86.8%</td>
+                            <td>Aumento graduale dell'irraggiamento e temperatura.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Maggio</td>
+                            <td>0.832</td>
+                            <td>83.2%</td>
+                            <td>Avvio della stagione calda, riduzione teorica per perdite di temperatura.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Giugno</td>
+                            <td>0.833</td>
+                            <td>83.3%</td>
+                            <td>Solstizio d'estate, alta radiazione ma temperature critiche.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Luglio</td>
+                            <td>0.820</td>
+                            <td>82.0%</td>
+                            <td>Picco termico estivo (valore di Target minimo dell'anno).</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Agosto</td>
+                            <td>0.828</td>
+                            <td>82.8%</td>
+                            <td>Temperature elevate ma con irraggiamento in lieve diminuzione.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Settembre</td>
+                            <td>0.852</td>
+                            <td>85.2%</td>
+                            <td>Transizione autunnale, moduli più freschi.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Ottobre</td>
+                            <td>0.876</td>
+                            <td>87.6%</td>
+                            <td>Temperature moderate, buone performance generali.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Novembre</td>
+                            <td>0.894</td>
+                            <td>89.4%</td>
+                            <td>Fase fredda, incremento del PR.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Dicembre</td>
+                            <td>0.900</td>
+                            <td>90.0%</td>
+                            <td>Mese a efficienza termica ottimale.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -590,25 +659,25 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">TX1-INV-1 .. 7, 12</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">TX1-INV-1 .. 7, 12</td>
                             <td>TX1</td>
                             <td>343.75 kW</td>
                             <td>Se potenza &le; 0 e POA &gt; soglia &rarr; Stima su media di cabina o formula PVSyst.</td>
                         </tr>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">TX1-INV-8 .. 11</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">TX1-INV-8 .. 11</td>
                             <td>TX1</td>
                             <td>359.375 kW</td>
                             <td>Idem con targa di stringa maggiorata.</td>
                         </tr>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">TX2-INV-1, 4, 5</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">TX2-INV-1, 4, 5</td>
                             <td>TX2</td>
                             <td>328.125 kW</td>
                             <td>Cabina centrale. Calcolo perdite con limite AC di stringa (320 kW).</td>
                         </tr>
                         <tr>
-                            <td style="color: #fff; font-weight: 600;">TX3-INV-1 .. 11</td>
+                            <td style="color: var(--border-hover); font-weight: 600;">TX3-INV-1 .. 11</td>
                             <td>TX3</td>
                             <td>359.375 kW</td>
                             <td>Stringhe di cabina Est. Regolazione potenza attiva applicata per curtailment.</td>
