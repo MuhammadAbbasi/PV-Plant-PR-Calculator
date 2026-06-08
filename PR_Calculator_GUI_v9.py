@@ -240,7 +240,7 @@ class PRCalculatorGUI:
             1: 0.904, 2: 0.896, 3: 0.897, 4: 0.868, 5: 0.832, 6: 0.833,
             7: 0.820, 8: 0.828, 9: 0.852, 10: 0.876, 11: 0.894, 12: 0.900
         }
-        default_pr = f"{pvsyst_defaults.get(current_month, 0.868):.3f}"
+        default_pr = f"{pvsyst_defaults.get(current_month, 0.868):.3f}".replace(".", ",")
         
         self.date_var = tk.StringVar(value=current_date_str)
         self.pvsyst_pr_var = tk.StringVar(value=default_pr)
@@ -443,18 +443,18 @@ class PRCalculatorGUI:
             self.pvsyst_tree.column(c, width=120, anchor=align)
             
         months_data = [
-            ("Gennaio", "0.904", "90.4%"),
-            ("Febbraio", "0.896", "89.6%"),
-            ("Marzo", "0.897", "89.7%"),
-            ("Aprile", "0.868", "86.8%"),
-            ("Maggio", "0.832", "83.2%"),
-            ("Giugno", "0.833", "83.3%"),
-            ("Luglio", "0.820", "82.0%"),
-            ("Agosto", "0.828", "82.8%"),
-            ("Settembre", "0.852", "85.2%"),
-            ("Ottobre", "0.876", "87.6%"),
-            ("Novembre", "0.894", "89.4%"),
-            ("Dicembre", "0.900", "90.0%")
+            ("Gennaio", "0,904", "90,4%"),
+            ("Febbraio", "0,896", "89,6%"),
+            ("Marzo", "0,897", "89,7%"),
+            ("Aprile", "0,868", "86,8%"),
+            ("Maggio", "0,832", "83,2%"),
+            ("Giugno", "0,833", "83,3%"),
+            ("Luglio", "0,820", "82,0%"),
+            ("Agosto", "0,828", "82,8%"),
+            ("Settembre", "0,852", "85,2%"),
+            ("Ottobre", "0,876", "87,6%"),
+            ("Novembre", "0,894", "89,4%"),
+            ("Dicembre", "0,900", "90,0%")
         ]
         for idx, (m, dec, pct) in enumerate(months_data, start=1):
             self.pvsyst_tree.insert("", "end", iid=f"m{idx}", values=(m, dec, pct))
@@ -689,7 +689,7 @@ class PRCalculatorGUI:
                     12: 0.900   # December
                 }
                 if month_val in pvsyst_defaults:
-                    self.pvsyst_pr_var.set(f"{pvsyst_defaults[month_val]:.3f}")
+                    self.pvsyst_pr_var.set(f"{pvsyst_defaults[month_val]:.3f}".replace(".", ","))
                     # Highlight matching row in the PVSyst reference treeview
                     try:
                         self.pvsyst_tree.selection_set(f"m{month_val}")
@@ -702,8 +702,8 @@ class PRCalculatorGUI:
             
     def on_pvsyst_pr_changed(self, *args):
         try:
-            val = float(self.pvsyst_pr_var.get())
-            self.lbl_pvsyst_target_val.config(text=f"{val * 100:.3f} %")
+            val = float(self.pvsyst_pr_var.get().replace(",", "."))
+            self.lbl_pvsyst_target_val.config(text=f"{val * 100:.3f} %".replace(".", ","))
         except ValueError:
             self.lbl_pvsyst_target_val.config(text="-- %")
             
@@ -714,8 +714,8 @@ class PRCalculatorGUI:
             return
             
         try:
-            pvsyst_pr = float(self.pvsyst_pr_var.get())
-            threshold = float(self.threshold_var.get())
+            pvsyst_pr = float(self.pvsyst_pr_var.get().replace(",", "."))
+            threshold = float(self.threshold_var.get().replace(",", "."))
         except ValueError:
             messagebox.showerror("Errore", "PR PVSyst e soglia Irraggiamento devono essere numeri validi!")
             return
@@ -1661,16 +1661,16 @@ class PRCalculatorGUI:
         self.btn_export.config(state="normal")
         
         # Display main metrics
-        self.lbl_avg_pr_val.config(text=f"{res['avg_inv_pr']:.3f} %")
-        self.lbl_comp_pr_val.config(text=f"{res['comp_raw_pr']:.3f} %")
+        self.lbl_avg_pr_val.config(text=f"{res['avg_inv_pr']:.3f} %".replace(".", ","))
+        self.lbl_comp_pr_val.config(text=f"{res['comp_raw_pr']:.3f} %".replace(".", ","))
         try:
-            val = float(self.pvsyst_pr_var.get())
-            self.lbl_pvsyst_target_val.config(text=f"{val * 100:.3f} %")
+            val = float(self.pvsyst_pr_var.get().replace(",", "."))
+            self.lbl_pvsyst_target_val.config(text=f"{val * 100:.3f} %".replace(".", ","))
         except ValueError:
             self.lbl_pvsyst_target_val.config(text="-- %")
         
         self.lbl_irrad_summary.config(
-            text=f"Irradiazione giornaliera totale: {res['h_sum_kwh']:.4f} kWh/m² (Media POA > {self.threshold_var.get()} W/m²)"
+            text=f"Irradiazione giornaliera totale: {res['h_sum_kwh']:.4f} kWh/m² (Media POA > {self.threshold_var.get()} W/m²)".replace(".", ",")
         )
         
         # Fill treeview (Inverters)
@@ -1769,8 +1769,8 @@ class PRCalculatorGUI:
                     "Valore": [
                         res["date_str"],
                         res["h_sum_kwh"],
-                        float(self.pvsyst_pr_var.get()),
-                        float(self.threshold_var.get()),
+                        float(self.pvsyst_pr_var.get().replace(",", ".")),
+                        float(self.threshold_var.get().replace(",", ".")),
                         res["uncomp_pr"],
                         res["comp_raw_pr"],
                         res["avg_inv_pr"]
