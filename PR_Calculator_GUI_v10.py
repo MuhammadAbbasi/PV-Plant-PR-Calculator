@@ -1354,27 +1354,28 @@ class PRCalculatorGUI:
 
             # Ensure B4, C4, I4, J4 header cells have the exact same style and borders as D4
             ref_cell = ws_mother.Cells(4, 4)
-            target_hdr = ws_mother.Range("B4:C4,I4:J4")
-            try:
-                target_hdr.Interior.Color = ref_cell.Interior.Color
-                target_hdr.Font.Name = ref_cell.Font.Name
-                target_hdr.Font.Size = ref_cell.Font.Size
-                target_hdr.Font.Bold = ref_cell.Font.Bold
-                target_hdr.Font.Color = ref_cell.Font.Color
-                target_hdr.HorizontalAlignment = ref_cell.HorizontalAlignment
-                target_hdr.VerticalAlignment = ref_cell.VerticalAlignment
-                target_hdr.WrapText = ref_cell.WrapText
-                
-                # Copy borders
-                for b_id in [7, 8, 9, 10, 11, 12]:
-                    try:
-                        target_hdr.Borders(b_id).LineStyle = ref_cell.Borders(b_id).LineStyle
-                        target_hdr.Borders(b_id).Weight = ref_cell.Borders(b_id).Weight
-                        target_hdr.Borders(b_id).Color = ref_cell.Borders(b_id).Color
-                    except Exception:
-                        pass
-            except Exception as fmt_err:
-                print(f"DEBUG Warning: non-fatal header style copy error: {fmt_err}")
+            for rng_str in ["B4:C4", "I4:J4"]:
+                target_hdr = ws_mother.Range(rng_str)
+                try:
+                    target_hdr.Interior.Color = ref_cell.Interior.Color
+                    target_hdr.Font.Name = ref_cell.Font.Name
+                    target_hdr.Font.Size = ref_cell.Font.Size
+                    target_hdr.Font.Bold = ref_cell.Font.Bold
+                    target_hdr.Font.Color = ref_cell.Font.Color
+                    target_hdr.HorizontalAlignment = ref_cell.HorizontalAlignment
+                    target_hdr.VerticalAlignment = ref_cell.VerticalAlignment
+                    target_hdr.WrapText = ref_cell.WrapText
+                    
+                    # Copy borders
+                    for b_id in [7, 8, 9, 10, 11, 12]:
+                        try:
+                            target_hdr.Borders(b_id).LineStyle = ref_cell.Borders(b_id).LineStyle
+                            target_hdr.Borders(b_id).Weight = ref_cell.Borders(b_id).Weight
+                            target_hdr.Borders(b_id).Color = ref_cell.Borders(b_id).Color
+                        except Exception:
+                            pass
+                except Exception as fmt_err:
+                    print(f"DEBUG Warning: non-fatal header style copy error for {rng_str}: {fmt_err}")
 
             # Remove solid green background fill from day rows for Irradiance TX1 and TX3 (make transparent)
             try:
