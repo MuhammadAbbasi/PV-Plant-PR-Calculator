@@ -71,6 +71,44 @@ class RedirectText:
         except Exception:
             pass
 
+class RoundedCard(tk.Canvas):
+    def __init__(self, parent, bg="#ffffff", border_color="#dadce0", radius=12, padding=16, **kwargs):
+        super().__init__(parent, bg="#f8f9fa", highlightthickness=0, bd=0, **kwargs)
+        self.bg = bg
+        self.border_color = border_color
+        self.radius = radius
+        self.padding = padding
+        
+        self.bind("<Configure>", self._draw)
+        
+        self.content_frame = tk.Frame(self, bg=self.bg, bd=0, highlightthickness=0)
+        self.window_id = self.create_window(0, 0, window=self.content_frame, anchor="nw")
+
+    def _draw(self, event):
+        self.delete("all")
+        w = event.width
+        h = event.height
+        r = self.radius
+        
+        # Offsets
+        x0, y0, x1, y1 = 1, 1, w - 2, h - 2
+        
+        self._draw_round_rect(x0, y0, x1, y1, r, fill=self.border_color, outline=self.border_color)
+        self._draw_round_rect(x0 + 1, y0 + 1, x1 - 1, y1 - 1, r, fill=self.bg, outline=self.bg)
+        
+        margin = self.padding
+        self.coords(self.window_id, margin, margin)
+        self.itemconfigure(self.window_id, width=w - 2 * margin, height=h - 2 * margin)
+
+    def _draw_round_rect(self, x0, y0, x1, y1, r, **kwargs):
+        self.create_arc(x0, y0, x0 + 2*r, y0 + 2*r, start=90, extent=90, style="pieslice", **kwargs)
+        self.create_arc(x1 - 2*r, y0, x1, y0 + 2*r, start=0, extent=90, style="pieslice", **kwargs)
+        self.create_arc(x1 - 2*r, y1 - 2*r, x1, y1, start=270, extent=90, style="pieslice", **kwargs)
+        self.create_arc(x0, y1 - 2*r, x0 + 2*r, y1, start=180, extent=90, style="pieslice", **kwargs)
+        
+        self.create_rectangle(x0 + r, y0, x1 - r, y1, **kwargs)
+        self.create_rectangle(x0, y0 + r, x1, y1 - r, **kwargs)
+
 class PRCalculatorGUI:
     def __init__(self, root):
         self.root = root
@@ -235,16 +273,8 @@ class PRCalculatorGUI:
         print(">>> Pronto per l'analisi del giorno singolo o della cartella mensile batch.")
         
     def create_card(self, parent, padding=16):
-        # Border container: light grey outline
-        border_card = tk.Frame(parent, bg="#dadce0", bd=0, highlightthickness=0)
-        # White surface
-        inner_card = tk.Frame(border_card, bg="#ffffff", bd=0, highlightthickness=0)
-        inner_card.pack(fill="both", expand=True, padx=1, pady=1)
-        
-        # Internal content frame with padding
-        content_frame = tk.Frame(inner_card, bg="#ffffff", bd=0, highlightthickness=0)
-        content_frame.pack(fill="both", expand=True, padx=padding, pady=padding)
-        return border_card, content_frame
+        card = RoundedCard(parent, bg="#ffffff", border_color="#dadce0", radius=12, padding=padding)
+        return card, card.content_frame
 
     def create_layout(self):
         # Top Header Bar spanning full width
