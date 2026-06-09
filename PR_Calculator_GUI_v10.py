@@ -1042,8 +1042,8 @@ class PRCalculatorGUI:
             
         df_result = pd.concat([df_result, pd.DataFrame(new_cols, index=df_result.index)], axis=1)
             
-        h_sum = df_result['h'].sum()
-        h_sum_kwh = h_sum / 4000.0
+        # For PR calculations, we use the Conditional MAX POA sum (from Column I) as the reference irradiance
+        h_sum_kwh = df_result['poa_cond_max_kwh'].sum()
         
         inv_prs = {}
         inverter_table_data = []
@@ -1205,21 +1205,21 @@ class PRCalculatorGUI:
                 col_inv = 2 + i
                 col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
                 inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
-                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*SUM(PR_Calc!$I$15:$I$110))"
                 
                 # TX2 (Columns AB to AM -> 28 to 39)
                 col_calc = 27 + i
                 col_inv = 17 + i
                 col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
                 inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
-                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*SUM(PR_Calc!$I$15:$I$110))"
                 
                 # TX3 (Columns AO to AZ -> 41 to 52)
                 col_calc = 40 + i
                 col_inv = 32 + i
                 col_calc_letter = openpyxl.utils.get_column_letter(col_calc)
                 inv_col_letter = openpyxl.utils.get_column_letter(col_inv)
-                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*(SUM(PR_Calc!$H$15:$H$110)/4000))"
+                ws_calc.Cells(111, col_calc).Formula2 = f"=SUM((Inverter_data!{inv_col_letter}15:{inv_col_letter}110)*0.25)/({col_calc_letter}$10*SUM(PR_Calc!$I$15:$I$110))"
                 
             print(f"[{date_str}] DEBUG: Scrittura dati PR_Calc e formule riga 111 completata.")
             
@@ -1264,7 +1264,7 @@ class PRCalculatorGUI:
             ws_calc.Cells(5, 53).Formula = "=((SUM(Tabella01MarzoInverter[[Active power TX1-INV-1]:[Active power TX1-INV-12]]," \
                                            "Tabella01MarzoInverter[[Active power TX2-INV-1]:[Active power TX2-INV-12]]," \
                                            "Tabella01MarzoInverter[[Active power TX3-INV-1]:[Active power TX3-INV-12]]) * 0.25) )" \
-                                           " / (12625 * (SUM($H$15:$H$110) * 0.25 / 1000))"
+                                           " / (12625 * SUM($I$15:$I$110))"
             ws_calc.Cells(6, 53).Value = float(diff_threshold)                     # BA6 is irradiance acceptance limit ratio
             ws_calc.Cells(7, 53).Value = float(threshold)          # BA7 is irradiance minimum value (e.g. 50)
             
@@ -1276,7 +1276,7 @@ class PRCalculatorGUI:
             
             # Write PR Compensated in Column BD (56) Row 11 and Column BH (60) Row 11 (percentage e.g. 81.743)
             ws_calc.Cells(11, 56).Value = "PR Compensated [%]"
-            ws_calc.Cells(11, 60).Formula = "=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * (SUM($H$15:$H$110)*0.25/1000))) * 100"
+            ws_calc.Cells(11, 60).Formula = "=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * SUM($I$15:$I$110))) * 100"
             
             print(f"[{date_str}] DEBUG: Aggiornamento tabelle laterali completato. Salvataggio cartella di lavoro in corso...")
             
@@ -1702,7 +1702,7 @@ class PRCalculatorGUI:
             self.lbl_pvsyst_target_val.config(text="-- %")
         
         self.lbl_irrad_summary.config(
-            text=f"Irradiazione giornaliera totale: {res['h_sum_kwh']:.4f} kWh/m² (Media POA > {self.threshold_var.get()} W/m²)".replace(".", ",")
+            text=f"Irradiazione giornaliera totale: {res['h_sum_kwh']:.4f} kWh/m² (Conditional MAX POA)".replace(".", ",")
         )
         
         # Fill treeview (Inverters)
