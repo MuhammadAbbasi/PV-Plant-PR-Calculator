@@ -1,4 +1,4 @@
-# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v7.0)
+# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v10.0)
 
 A professional, high-performance Python-based tool designed for the **GET S.R.L.** Mazara 01 photovoltaic plant. This application automates the calculation of the Performance Ratio (PR), providing both raw and compensated metrics by processing SCADA data and weather station logs.
 
@@ -10,10 +10,12 @@ A professional, high-performance Python-based tool designed for the **GET S.R.L.
 - **Compensated PR Analysis**: Intelligent logic to account for:
     - **Curtailment Losses**: Energy lost due to grid-imposed power limits.
     - **Downtime Losses**: Energy lost during inverter or transformer outages.
+- **PR Compensated Formula Integration (v10.0)**: Writes the live PR Compensated mathematical formula directly into Excel daily child files (`BH11`) and automatically links it to the Mother file.
+- **Italian Decimal formatting**: Handles commas for decimal entry and display in GUI while preserving proper float numbers during Excel generation.
 - **Batch Processing Mode**: Processes a month's data in a single run, utilizing a high-speed single-pass sync that minimizes Excel startup overhead.
 - **Excel Automation via ActiveX**: Utilizes Excel COM for seamless report generation, avoiding `openpyxl` table corruption and ensuring that complex formulas and styles remain uncorrupted.
 - **Mother-Child File Syncing (Self-Healing)**: Automatically scans and links monthly "Mother" files with data from daily "Child" recalculation files via dynamic Excel formulas. If the file is locked, it reports descriptive errors to the user instead of failing silently.
-- **Direct Loss Write (v7.0)**: Python-computed per-inverter energy losses are written directly to the Excel loss columns (O–Z for TX1, AB–AM for TX2, AO–AZ for TX3), bypassing Excel formula dependency and guaranteeing correctness independent of any cell parameter.
+- **Direct Loss Write (v7.0+)**: Python-computed per-inverter energy losses are written directly to the Excel loss columns (O–Z for TX1, AB–AM for TX2, AO–AZ for TX3), bypassing Excel formula dependency.
 - **Obsidian Dark Mode Interface**: A premium, luxury-themed GUI built with Tkinter, featuring real-time logging, interactive controls, and performance metrics.
 
 ## Prerequisites
@@ -35,7 +37,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 2. **Template Configuration**:
    Ensure the `original_format/` directory contains the required Excel templates:
    - `00 PR_recalculation_*.xlsx` (Monthly Mother file)
-   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 7.0 aligned*)
+   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 10.0 aligned*)
 
 3. **Assets**:
    Place company logos in the `assets/` folder (`logo.png`, `logo.ico`).
@@ -45,11 +47,11 @@ pip install pandas numpy openpyxl pywin32 Pillow
 1. **Launch the Application**:
    Run the GUI using Python:
    ```bash
-   python PR_Calculator_GUI_v7.py
+   python PR_Calculator_GUI_v10.py
    ```
    Or run the compiled executable:
    ```bash
-   "PR Calculator v7.exe"
+   "PR Calculator v10.exe"
    ```
 
 2. **Single Day Processing**:
@@ -64,7 +66,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 
 ---
 
-## 📊 Excel Templates & Formatting Requirements (v6.0)
+## 📊 Excel Templates & Formatting Requirements (v10.0)
 
 The tool automates calculations by reading from and writing to specific sheets, columns, and cells within two template types. Below are the formatting requirements to ensure compatibility:
 
@@ -104,6 +106,8 @@ Must contain at least two worksheets with the following exact names and structur
         *   `BH8`: **PR from SCADA (Uncompensated PR % written from GUI, e.g., `37.529`)**
         *   `BH9`: Irradiance acceptance limit ratio (`=+BA6*100`)
         *   `BH10`: Minimum Irradiance threshold (`=+BA7`)
+        *   `BH11`: **PR Compensated [%] (Active Excel formula written from GUI)**:
+            `=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * (SUM($H$15:$H$110)*0.25/1000))) * 100`
 
 *   **`Inverter_data` Sheet**:
     *   **Rows 15 to 110**:
@@ -115,23 +119,37 @@ Must contain at least two worksheets with the following exact names and structur
 ### 2. Monthly "Mother" Workbook (`00 PR_recalculation_*.xlsx`)
 Must contain a **`PR_Calc`** sheet structured as follows:
 *   **Column `A`**: Date sequence for the entire month (Rows 5 to `5 + num_days - 1`).
-*   **Columns `D` to `AR` (Rows 5 to `5 + num_days - 1`)**: Auto-linked formulas referencing the corresponding child workbook:
-    *   Column `D` (PR Daily): `='[ChildPath]PR_Calc'!$BA$5*100` (or `='[ChildPath]PR_Calc'!$BH$6`)
-    *   Column `E` (PR SCADA): **`='[ChildPath]PR_Calc'!$BH$8`** (Linked to daily SCADA PR in Column BH)
-    *   Column `F`, `G`, `H` (Energy Loss): Linked to daily file cells `$AA$111`, `$AN$111`, `$BA$111` respectively.
-    *   Columns `I` to `T` (TX1 Inverters): Linked to child file row 111, columns `O` to `Z` (`O$111` to `Z$111`).
-    *   Columns `U` to `AF` (TX2 Inverters): Linked to child file row 111, columns `AB` to `AM` (`AB$111` to `AM$111`).
-    *   Columns `AG` to `AR` (TX3 Inverters): Linked to child file row 111, columns `AO` to `AZ` (`AO$111` to `AZ$111`).
-*   **Summary Row**: Dynamically positioned at Row `5 + num_days` containing the `=AVERAGE(D5:D{last_day_row})` formula in columns `D` and `E`.
+*   **Columns `B` to `M` (Day Rows)**: Auto-linked formulas referencing the corresponding child workbook:
+    *   Column `B` (Irradiance TX1): `='[ChildPath]PR_Calc'!$D$111`
+    *   Column `C` (Irradiance TX3): `='[ChildPath]PR_Calc'!$F$111`
+    *   Column `D` (Irradiance [kWh/m2]): `='[ChildPath]PR_Calc'!$I$111`
+    *   Column `E` (Energy [kWh]): `='[ChildPath]PR_Calc'!$M$111`
+    *   Column `F` (PR Target [%]): `='[ChildPath]PR_Calc'!$BH$5`
+    *   Column `G` (PR Total [%]): `='[ChildPath]PR_Calc'!$BH$6` (or `='[ChildPath]PR_Calc'!$BA$5*100`)
+    *   Column `H` (PR VCOM [%]): `='[ChildPath]PR_Calc'!$BH$8`
+    *   Column `I` (PR Compensated [%]): **`='[ChildPath]PR_Calc'!$BH$11`**
+    *   Column `J` (External Availability [%]): `=IF(E{r}="",0,(E{r}/(E{r}+K{r}+L{r}+M{r}))*100)`
+    *   Column `K` (TX1 Energy Loss): `='[ChildPath]PR_Calc'!$AA$111`
+    *   Column `L` (TX2 Energy Loss): `='[ChildPath]PR_Calc'!$AN$111`
+    *   Column `M` (TX3 Energy Loss): `='[ChildPath]PR_Calc'!$BA$111`
+*   **Inverter Columns (Columns N to AW)**: Linked to corresponding child row 111 per-inverter calculated PR.
+*   **Summary Row**: Dynamically positioned at Row `5 + num_days` containing appropriate sums and averages.
 
 ---
 
 ## Changelog
 
+### v10.0
+- **New Feature**: Added `PR Compensated` calculation using active formula written to daily cell `BH11`.
+- **New Feature**: Linked daily `BH11` to Column I (`PR Compensated`) of the Mother file.
+- **New Feature**: Added automatic insertion of `External Availability [%]` in Column J of the Mother file.
+- **UI Update**: Decimal separator in GUI inputs changed to comma (Italian locale rules) while preserving native Excel numeric formats.
+- **Bug fix**: Resolved OLE/COM Excel list separator formatting errors under Italian locale for cell range formatting.
+
 ### v7.0
-- **Bug fix**: Energy loss values (TX1/TX2/TX3) were reported 100× too small in all Excel output files. Root cause: the PVSyst PR parameter written to cell `BA4` was divided by 100 twice (`pvsyst_pr / 100.0` when the value is already stored as a decimal, e.g. `0.897`). Every Excel loss formula uses `$BA$4`, so all reported losses were off by a factor of 100 (e.g. 181 kWh shown instead of ~18,091 kWh on a curtailed day).
+- **Bug fix**: Energy loss values (TX1/TX2/TX3) were reported 100× too small in all Excel output files. Root cause: the PVSyst PR parameter written to cell `BA4` was divided by 100 twice (`pvsyst_pr / 100.0` when the value is already stored as a decimal, e.g. `0.897`).
 - **Fix**: `BA4` is now written as `float(pvsyst_pr)` directly.
-- **Fix**: Python-computed per-inverter energy losses are written directly to the PR_Calc sheet (columns O–Z for TX1, AB–AM for TX2, AO–AZ for TX3) as plain values, removing the dependency on Excel formula recalculation and the `BA4` parameter for those cells.
+- **Fix**: Python-computed per-inverter energy losses are written directly to the PR_Calc sheet (columns O–Z for TX1, AB–AM for TX2, AO–AZ for TX3) as plain values.
 
 ---
 
@@ -140,10 +158,10 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 To bundle the application into a standalone Windows executable:
 
 ```powershell
-python scratch/build_exe.py
+pyinstaller --noconfirm "\\S01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\PR Calculation automation\PR Calculator v10.spec"
 ```
 
-This script will verify your PyInstaller installation, build the executable using **`PR Calculator v7.spec`**, and copy the standalone **`PR Calculator v7.exe`** to the main folder.
+This will produce the compiled standalone **`PR Calculator v10.exe`** under the main folder.
 
 ---
 

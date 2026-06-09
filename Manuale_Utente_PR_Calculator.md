@@ -61,27 +61,47 @@ Mostra la tabella dei Target PR previsti da PVSyst per ciascun mese dell'anno. Q
 
 ---
 
-## 📑 Tabella di Dettaglio dei 36 Inverter (Area 7)
+## 🚦 Stato dell'Elaborazione (Area 7)
 
-Questa tabella interattiva espone il comportamento di ogni singolo inverter (da `TX1-INV-1` a `TX3-INV-12`):
-- **Codice Inverter:** Identificativo specifico della macchina.
-- **Trasformatore:** Trasformatore associato (TX1, TX2 o TX3).
-- **Potenza CC Nominale (kW):** La potenza nominale di targa dell'inverter (328.125, 343.75 o 359.375 kW).
-- **Energia Prodotta (kWh):** L'energia reale prodotta dall'inverter nella giornata in esame.
-- **Perdita Stimata (kWh):** La stima dell'energia perduta per indisponibilità della rete o regolazione attiva.
-- **PR Compensato (%):** Il Performance Ratio specifico della singola macchina.
+- **Descrizione:** Mostra i messaggi di progresso e l'esito finale dell'elaborazione (es. *"Calcolo completato con successo!"* o messaggi di errore) in corrispondenza del pulsante principale di calcolo.
 
 ---
 
-## 💾 Esportazione dei Dati (Area 8)
+## 📑 Titolo e Intestazione Console (Area 8)
 
-- **Pulsante [ Esporta Dati Completi su Excel... ]**: Genera un report Excel autonomo multi-foglio contenente il riassunto esecutivo, l'elenco dei 36 inverter e tutti i 96 quarti d'ora della giornata con ogni singola variabile calcolata.
+- **Descrizione:** Intestazione della sezione diagnostica con titolo *"Console Live Log di Esecuzione"* e indicazioni sui messaggi diagnostici in tempo reale relativi all'elaborazione dei file Excel e del motore di calcolo.
 
 ---
 
-## 📜 Console di Log in Tempo Reale (Area 9)
+## 📜 Console Live Log in Tempo Reale (Area 9)
 
-- **Console Live Log:** Visualizza lo stato di avanzamento delle operazioni, l'apertura dei file Excel in memoria, la tabella riassuntiva dei PR giornalieri elaborati in modalità batch e la notifica di eventuali anomalie.
+- **Console Live Log:** La finestra di testo che visualizza i log operativi riga per riga (notifiche di avanzamento, caricamenti di file SCADA, ricalcoli batch dei giorni e scrittura sul file Madre).
+
+---
+
+## 📑 Dettaglio e Calcolo Excel (Generato Automaticamente)
+
+Anche se non visualizzati direttamente nell'interfaccia principale della v10, il software genera e popola automaticamente:
+- **Dettagli dei 36 Inverter:** Codice inverter, trasformatore (TX1/2/3), potenza nominale, energia prodotta, perdite stimate e PR Compensato scritti direttamente nelle schede del file Excel.
+- **Formule Attive nel Foglio Giornaliero:** Formula per il PR Compensato (cella `BH11`) e per le perdite per trasformatore (riga 111).
+
+---
+
+## 🧮 Formula di Dettaglio del PR Compensato (v10.0)
+
+A partire dalla versione 10.0, il software scrive nel foglio `PR_Calc` (cella `BH11`) del file giornaliero la formula attiva per il calcolo del **PR Compensato**:
+
+$$\text{PR Compensato} = \left( \frac{\text{Energia Inverter Total} + \text{Loss TX1} + \text{Loss TX2} + \text{Loss TX3}}{\text{Irradiance Sum} \times \text{Plant CC Power}} \right) \times 100$$
+
+Nello specifico, la formula Excel inserita è:
+`=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * (SUM($H$15:$H$110)*0.25/1000))) * 100`
+
+Questa formula viene poi sincronizzata nel file **Madre** mensile:
+* **Colonna H (PR VCOM / PR Total)**: Collegato alla cella `$BA$5*100` (PR Raw).
+* **Colonna I (PR Compensated)**: Collegato alla cella `$BH$11` (PR Compensato).
+* **Colonna J (External Availability %)**: Calcolata tramite formula `=IF(E{r}="",0,(E{r}/(E{r}+K{r}+L{r}+M{r}))*100)`.
+* **Colonne K, L, M (TX1, TX2, TX3 Energy Loss)**: Collegate alle celle `$AA$111`, `$AN$111`, `$BA$111` dei file giornalieri.
+
 
 ---
 
@@ -89,5 +109,7 @@ Questa tabella interattiva espone il comportamento di ogni singolo inverter (da 
 
 > [!WARNING]
 > - **Errore "File Not Found":** Verifica che nella cartella selezionata siano presenti tutti e 7 i file SCADA richiesti (`TS_01_Inverter`, `SATAC_Meter`, ecc.).
+> - **Formato Numerico Italiano:** Nella GUI i numeri decimali vengono inseriti e visualizzati usando la virgola (es. `0,897` o `50,0`), in conformità con i requisiti locali. Il software converte automaticamente i valori in formato corretto per l'esportazione su Excel.
 > - **Errore "#DIV/0!" nei file generati:** È stato eliminato grazie alla funzione `IFERROR`. Se apri un file grezzo e vedi divisioni per zero nelle ore notturne, avvia il calcolo tramite questo software per ripristinare le formule corrette.
-> - **Blocco di Rete SMB / Errore OLE:** Il software gestisce automaticamente i percorsi di rete UNC convertendo gli slash in backslash (`\`).
+> - **Blocco di Rete SMB / Errore OLE:** Il software gestisce automaticamente i percorsi di rete UNC condivisi convertendo gli slash in backslash (`\`).
+
