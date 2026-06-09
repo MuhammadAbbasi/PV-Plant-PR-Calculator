@@ -1179,8 +1179,8 @@ class PRCalculatorGUI:
             # Permanently eliminate #DIV/0! errors from daily workbook formula columns
             for r in range(15, 111):
                 ws_calc.Cells(r, 7).Formula = f"=IFERROR((D{r}+F{r})/2, 0)"
-                ws_calc.Cells(r, 8).Formula = f"=IFERROR(IF(AVERAGE(C{r},E{r})>$BA$7,AVERAGE(C{r},E{r}),0), 0)"
-                ws_calc.Cells(r, 9).Formula = f"=IFERROR(IF(AND(D{r}=0,F{r}=0),0,IF(J{r}>$BA$6,MAX(D{r},F{r}),G{r})), 0)"
+                ws_calc.Cells(r, 8).Formula = f"=IFERROR(IF(OR(C{r}=0,E{r}=0),IF(MAX(C{r},E{r})>$BA$7,MAX(C{r},E{r}),0),IF(AVERAGE(C{r},E{r})>$BA$7,AVERAGE(C{r},E{r}),0)), 0)"
+                ws_calc.Cells(r, 9).Formula = f"=IFERROR(IF(AND(D{r}=0,F{r}=0),0,IF(OR(D{r}=0,F{r}=0),MAX(D{r},F{r}),IF(J{r}>$BA$6,MAX(D{r},F{r}),G{r}))), 0)"
                 ws_calc.Cells(r, 10).Formula = f"=IFERROR(IF(AND(D{r}>0,F{r}>0),ABS(D{r}-F{r})/AVERAGE(D{r},F{r}),0), 0)"
                 ws_calc.Cells(r, 13).Formula = f"=IFERROR((L{r}-K{r})*1000, 0)"
                 
