@@ -94,7 +94,7 @@ Must contain at least two worksheets with the following exact names and structur
         *   Column `M` (Active Energy production): `=IFERROR((L{r}-K{r})*1000, 0)`
     *   **Nominal Parameters (Column BA)**:
         *   `BA4`: PVSyst PR Target as decimal (e.g., `0.897` written from GUI)
-        *   `BA6`: Irradiance acceptance limit ratio (e.g., `0.03`)
+        *   `BA6`: Irradiance acceptance limit ratio (e.g., `0.10` for 10% tolerance, user-defined from GUI, default 10%)
         *   `BA7`: Minimum Irradiance threshold (e.g., `50` written from GUI)
     *   **Shifted Parameters Table (Columns BD & BH)**:
         *   `BD2`: English PR title header (e.g., `"1 May 2026 PR Calculation"`)
@@ -140,6 +140,7 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 ## Changelog
 
 ### v10.0
+- **New Feature**: Added user-controlled **Irradiance Difference Tolerance (%)** (value between 0% and 100%, default 10%) in the GUI to determine conditional max selection between weather stations TX1 and TX3, written to cell `BA6` in the daily worksheet.
 - **New Feature**: Added `PR Compensated` calculation using active formula written to daily cell `BH11`.
 - **New Feature**: Linked daily `BH11` to Column I (`PR Compensated`) of the Mother file.
 - **New Feature**: Added automatic insertion of `External Availability [%]` in Column J of the Mother file.

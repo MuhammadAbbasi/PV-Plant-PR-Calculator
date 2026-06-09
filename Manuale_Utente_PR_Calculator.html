@@ -441,9 +441,9 @@
                     <div class="callout-card" onclick="highlightBadge(3, this)">
                         <div class="callout-header">
                             <div class="badge" style="background: #e91e63;">3</div>
-                            <div class="card-title">Parametri di Calcolo (Data, PVSyst, Irraggiamento)</div>
+                            <div class="card-title">Parametri di Calcolo (Data, PVSyst, Irraggiamento, Tolleranza)</div>
                         </div>
-                        <div class="card-desc">Permette di impostare la data di riferimento, l'obiettivo contrattuale PVSyst (es. 0.897) e la soglia minima di irraggiamento (W/m²) oltre la quale scatta la stima delle perdite.</div>
+                        <div class="card-desc">Permette di impostare la data di riferimento, l'obiettivo contrattuale PVSyst (es. 0.897), la soglia di irraggiamento minimo (W/m²) e la tolleranza per lo scostamento relativo dell'irraggiamento (%).</div>
                     </div>
 
                     <div class="callout-card" onclick="highlightBadge(4, this)">
@@ -544,6 +544,12 @@
                             <td>Intero (W/m²)</td>
                             <td>Soglia di irraggiamento solare sul piano del modulo (POA).</td>
                             <td>Sotto questa soglia (es. 50 W/m²), i calcoli di perdita di energia vengono azzerati per evitare sovrastime notturne o al crepuscolo.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--border-hover); font-weight: 600;">Irradiance Diff Tolerance (%)</td>
+                            <td>Decimale / Intero (0% - 100%)</td>
+                            <td>Tolleranza per la differenza percentuale di irraggiamento tra i sensori meteo (TX1 e TX3).</td>
+                            <td>Se la differenza relativa di irraggiamento tra TX1 e TX3 supera questa soglia (es. 10%), il sistema adotta il valore massimo (Conditional MAX) anziché la media semplice, mitigando l'impatto di coperture parziali o anomalie temporanee dei sensori.</td>
                         </tr>
                     </tbody>
                 </table>

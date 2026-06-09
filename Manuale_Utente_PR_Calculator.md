@@ -35,6 +35,7 @@ L'interfaccia è stata progettata con un design chiaro moderno, pulito ed elegan
 | **Data (AAAA-MM-GG)** | Data del giorno in analisi. Viene rilevata e compilata automaticamente leggendo i dati dai file Excel selezionati. | Formato ISO (es. `2026-05-01`) |
 | **PR Mensile PVSyst** | Obiettivo mensile di Performance Ratio teorico, rilevato e compilato automaticamente dalla tabella di riferimento quando viene aggiornata la data. | Compilato in automatico |
 | **Irraggiamento Min (W/m²)** | Soglia minima di irraggiamento solare oltre la quale i calcoli di perdita di energia entrano in funzione. | `50` W/m² |
+| **Tolleranza Diff. Irraggiamento (%)** | Soglia di scostamento consentito (tra 0% e 100%) tra i sensori per il calcolo del Conditional MAX. Se superata, viene preso il valore massimo. | `10` % (Default) |
 
 ---
 

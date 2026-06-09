@@ -245,6 +245,7 @@ class PRCalculatorGUI:
         self.date_var = tk.StringVar(value=current_date_str)
         self.pvsyst_pr_var = tk.StringVar(value=default_pr)
         self.threshold_var = tk.StringVar(value="50")
+        self.diff_threshold_var = tk.StringVar(value="10")
         self.reprocess_all_var = tk.BooleanVar(value=False)
         
         # Register a trace on date_var to auto-update the PVSyst PR default value
@@ -360,33 +361,39 @@ class PRCalculatorGUI:
         btn_browse = ttk.Button(folder_entry_frame, text="Sfoglia...", style="Secondary.TButton", command=self.browse_folder)
         btn_browse.pack(side="right")
         
-        # Parameters Grid (Date, PVSyst PR, Threshold)
+        # Parameters Grid (Date, PVSyst PR, Threshold, Diff Threshold)
         params_grid = tk.Frame(inputs_card, bg="#ffffff")
         params_grid.pack(fill="x", pady=10)
         params_grid.columnconfigure(0, weight=1)
         params_grid.columnconfigure(1, weight=1)
-        params_grid.columnconfigure(2, weight=1)
         
-        # Date Input
+        # Date Input (Row 0, Column 0)
         date_frame = tk.Frame(params_grid, bg="#ffffff")
-        date_frame.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+        date_frame.grid(row=0, column=0, padx=(0, 10), pady=(0, 10), sticky="ew")
         tk.Label(date_frame, text="Data (AAAA-MM-GG):", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
-        self.entry_date = ttk.Entry(date_frame, textvariable=self.date_var, width=12, font=("Segoe UI", 10))
-        self.entry_date.pack(anchor="w", pady=2)
+        self.entry_date = ttk.Entry(date_frame, textvariable=self.date_var, font=("Segoe UI", 10))
+        self.entry_date.pack(fill="x", pady=2)
         
-        # PVSyst PR Input
+        # PVSyst PR Input (Row 0, Column 1)
         pr_frame = tk.Frame(params_grid, bg="#ffffff")
-        pr_frame.grid(row=0, column=1, padx=5, sticky="ew")
+        pr_frame.grid(row=0, column=1, padx=(10, 0), pady=(0, 10), sticky="ew")
         tk.Label(pr_frame, text="PR Mensile PVSyst:", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
-        self.entry_pr = ttk.Entry(pr_frame, textvariable=self.pvsyst_pr_var, width=10, font=("Segoe UI", 10))
-        self.entry_pr.pack(anchor="w", pady=2)
+        self.entry_pr = ttk.Entry(pr_frame, textvariable=self.pvsyst_pr_var, font=("Segoe UI", 10))
+        self.entry_pr.pack(fill="x", pady=2)
         
-        # Irradiance Threshold
+        # Irradiance Threshold (Row 1, Column 0)
         thresh_frame = tk.Frame(params_grid, bg="#ffffff")
-        thresh_frame.grid(row=0, column=2, padx=(5, 0), sticky="ew")
+        thresh_frame.grid(row=1, column=0, padx=(0, 10), pady=(10, 0), sticky="ew")
         tk.Label(thresh_frame, text="Irraggiamento Min (W/m²):", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
-        self.entry_thresh = ttk.Entry(thresh_frame, textvariable=self.threshold_var, width=10, font=("Segoe UI", 10))
-        self.entry_thresh.pack(anchor="w", pady=2)
+        self.entry_thresh = ttk.Entry(thresh_frame, textvariable=self.threshold_var, font=("Segoe UI", 10))
+        self.entry_thresh.pack(fill="x", pady=2)
+        
+        # Irradiance Difference Threshold for Conditional MAX (Row 1, Column 1)
+        diff_thresh_frame = tk.Frame(params_grid, bg="#ffffff")
+        diff_thresh_frame.grid(row=1, column=1, padx=(10, 0), pady=(10, 0), sticky="ew")
+        tk.Label(diff_thresh_frame, text="Tolleranza Diff. Irraggiamento (%):", bg="#ffffff", fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
+        self.entry_diff_thresh = ttk.Entry(diff_thresh_frame, textvariable=self.diff_threshold_var, font=("Segoe UI", 10))
+        self.entry_diff_thresh.pack(fill="x", pady=2)
         
         # Force reprocess checkbox (Batch mode)
         chk_frame = tk.Frame(inputs_card, bg="#ffffff")
@@ -716,8 +723,12 @@ class PRCalculatorGUI:
         try:
             pvsyst_pr = float(self.pvsyst_pr_var.get().replace(",", "."))
             threshold = float(self.threshold_var.get().replace(",", "."))
+            diff_thresh_val = float(self.diff_threshold_var.get().replace(",", "."))
+            if not (0.0 <= diff_thresh_val <= 100.0):
+                raise ValueError("Out of range")
+            diff_threshold = diff_thresh_val / 100.0
         except ValueError:
-            messagebox.showerror("Errore", "PR PVSyst e soglia Irraggiamento devono essere numeri validi!")
+            messagebox.showerror("Errore", "I parametri (PR, Soglia Irraggiamento, Tolleranza Diff) devono essere numeri validi, e la Tolleranza Diff. deve essere compresa tra 0% e 100%!")
             return
             
         date_str = self.date_var.get().strip()
@@ -730,7 +741,7 @@ class PRCalculatorGUI:
         self.lbl_status.config(text="Calcolo del PR in corso... attendere prego...", foreground=self.warn_color)
         
         # Run calculation in a separate thread to keep UI active
-        thread = threading.Thread(target=self.run_calculation, args=(folder, date_str, pvsyst_pr, threshold))
+        thread = threading.Thread(target=self.run_calculation, args=(folder, date_str, pvsyst_pr, threshold, diff_threshold))
         thread.start()
         
     def find_file_by_patterns(self, folder, patterns):
@@ -749,7 +760,7 @@ class PRCalculatorGUI:
                         return file_path
         return None
 
-    def calculate_single_day(self, folder, date_str, pvsyst_pr, threshold, calcolo_folder=None, skip_mother_update=False):
+    def calculate_single_day(self, folder, date_str, pvsyst_pr, threshold, diff_threshold=0.10, calcolo_folder=None, skip_mother_update=False):
         import shutil
         import openpyxl
         import datetime
@@ -896,8 +907,10 @@ class PRCalculatorGUI:
             
             if poa1_kwh == 0 and poa3_kwh == 0:
                 poa_cond_max_kwh = 0.0
+            elif poa1_kwh == 0 or poa3_kwh == 0:
+                poa_cond_max_kwh = max(poa1_kwh, poa3_kwh)
             else:
-                if diff_pct > 0.03:
+                if diff_pct > diff_threshold:
                     poa_cond_max_kwh = max(poa1_kwh, poa3_kwh)
                 else:
                     poa_cond_max_kwh = poa_avg_kwh
@@ -1252,7 +1265,7 @@ class PRCalculatorGUI:
                                            "Tabella01MarzoInverter[[Active power TX2-INV-1]:[Active power TX2-INV-12]]," \
                                            "Tabella01MarzoInverter[[Active power TX3-INV-1]:[Active power TX3-INV-12]]) * 0.25) )" \
                                            " / (12625 * (SUM($H$15:$H$110) * 0.25 / 1000))"
-            ws_calc.Cells(6, 53).Value = 0.03                     # BA6 is irradiance acceptance limit ratio
+            ws_calc.Cells(6, 53).Value = float(diff_threshold)                     # BA6 is irradiance acceptance limit ratio
             ws_calc.Cells(7, 53).Value = float(threshold)          # BA7 is irradiance minimum value (e.g. 50)
             
             # Write English PR calculation header in Column BD (56) Row 2
@@ -1572,7 +1585,7 @@ class PRCalculatorGUI:
                                f"Assicurarsi che il file non sia aperto in un'altra finestra di Excel o bloccato da un altro utente.\n"
                                f"Dettaglio errore: {ex}")
 
-    def run_calculation(self, folder, date_str, pvsyst_pr, threshold):
+    def run_calculation(self, folder, date_str, pvsyst_pr, threshold, diff_threshold=0.10):
         try:
             import datetime
             # Scan immediate subdirectories to check if this is a month folder (e.g. contains subdirectories '01', '02', '25', '26' etc.)
@@ -1627,7 +1640,7 @@ class PRCalculatorGUI:
                     day_folder = os.path.join(folder, day_str)
                     try:
                         last_df_result, last_calc_results = self.calculate_single_day(
-                            day_folder, target_date_str, pvsyst_pr, threshold, calcolo_folder, skip_mother_update=True
+                            day_folder, target_date_str, pvsyst_pr, threshold, diff_threshold, calcolo_folder, skip_mother_update=True
                         )
                         self.all_days_results.append(last_calc_results)
                         processed_count += 1
@@ -1656,7 +1669,7 @@ class PRCalculatorGUI:
             else:
                 # Single Day Processing mode
                 self.root.after(0, lambda: self.lbl_status.config(text="Calcolo giorno singolo in corso...", foreground=self.warn_color))
-                df_res, calc_res = self.calculate_single_day(folder, date_str, pvsyst_pr, threshold)
+                df_res, calc_res = self.calculate_single_day(folder, date_str, pvsyst_pr, threshold, diff_threshold)
                 
                 self.df_result = df_res
                 self.calc_results = calc_res
@@ -1781,6 +1794,7 @@ class PRCalculatorGUI:
                         "Irradiazione Giornaliera Totale (kWh/m²)",
                         "Target PR PVSyst Mensile",
                         "Soglia Irraggiamento Minimo (W/m²)",
+                        "Tolleranza Differenza Irraggiamento (%)",
                         "PR Grezzo Non Compensato (%)",
                         "PR Grezzo Compensato (%)",
                         "Media dei 36 PR Inverter Compensati (%)"
@@ -1790,6 +1804,7 @@ class PRCalculatorGUI:
                         res["h_sum_kwh"],
                         float(self.pvsyst_pr_var.get().replace(",", ".")),
                         float(self.threshold_var.get().replace(",", ".")),
+                        float(self.diff_threshold_var.get().replace(",", ".")),
                         res["uncomp_pr"],
                         res["comp_raw_pr"],
                         res["avg_inv_pr"]
