@@ -1,4 +1,4 @@
-# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v10.0)
+# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v11.0)
 
 A professional, high-performance Python-based tool designed for the **GET S.R.L.** Mazara 01 photovoltaic plant. This application automates the calculation of the Performance Ratio (PR), providing both raw and compensated metrics by processing SCADA data and weather station logs.
 
@@ -6,6 +6,12 @@ A professional, high-performance Python-based tool designed for the **GET S.R.L.
 
 ## Features
 
+- **Selectable POA Reference (v11.0)**: A GUI toggle chooses how the plane-of-array irradiance that drives every PR is derived from the two pyranometers (TX1/TX3):
+    - **Conditional MAX** (conservative, default): uses the higher sensor when the two diverge beyond the user tolerance (protects against soiling-inflated PR).
+    - **Media (Average)**: the standard IEC two-sensor arithmetic mean.
+    Both apply the minimum-irradiance gate and flow consistently into every PR figure (per-inverter, `BA5`, `BH11`).
+- **Meter Gap & Anomaly Repair (v11.0)**: Missing, zero, or backwards (negative-delta) SATAC meter readings are detected and interpolated from the nearest valid neighbours; repaired cells are highlighted in orange with an explanatory note in the daily file.
+- **Locked-File Recovery (v11.0)**: If a daily or Mother workbook is open in another Excel window, the tool prompts for confirmation and force-closes it (via the Running Object Table) instead of failing.
 - **Automated Calculation Engine**: Processes 15-minute interval data for active power, solar irradiance (POA), and energy meter readings.
 - **Compensated PR Analysis**: Intelligent logic to account for:
     - **Curtailment Losses**: Energy lost due to grid-imposed power limits.
@@ -37,7 +43,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 2. **Template Configuration**:
    Ensure the `original_format/` directory contains the required Excel templates:
    - `00 PR_recalculation_*.xlsx` (Monthly Mother file)
-   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *Version 10.0 aligned*)
+   - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *v11.0 aligned*)
 
 3. **Assets**:
    Place company logos in the `assets/` folder (`logo.png`, `logo.ico`).
@@ -47,11 +53,11 @@ pip install pandas numpy openpyxl pywin32 Pillow
 1. **Launch the Application**:
    Run the GUI using Python:
    ```bash
-   python PR_Calculator_GUI_v10.py
+   python PR_Calculator_GUI_v11.py
    ```
    Or run the compiled executable:
    ```bash
-   "PR Calculator v10.exe"
+   "PR Calculator v11.exe"
    ```
 
 2. **Single Day Processing**:
@@ -66,7 +72,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 
 ---
 
-## 📊 Excel Templates & Formatting Requirements (v10.0)
+## 📊 Excel Templates & Formatting Requirements (v11.0)
 
 The tool automates calculations by reading from and writing to specific sheets, columns, and cells within two template types. Below are the formatting requirements to ensure compatibility:
 
@@ -87,14 +93,16 @@ Must contain at least two worksheets with the following exact names and structur
         *   Column `L`: Meter Current Reading (SATAC)
         *   Column `N`: Active Power Regulation Limit Ratio (expressed as a decimal, e.g., `0.876`)
     *   **Formula Cells (Rows 15 to 110)**: Autopopulated with exact Excel formulas to prevent `#DIV/0!` errors:
-        *   Column `G` (POA Avg): `=IFERROR((D{r}+F{r})/2, 0)`
-        *   Column `H` (POA threshold check): `=IFERROR(IF(AVERAGE(C{r},E{r})>$BA$7,AVERAGE(C{r},E{r}),0), 0)`
-        *   Column `I` (POA max check): `=IFERROR(IF(AND(D{r}=0,F{r}=0),0,IF(H{r}>$BA$6,MAX(D{r},F{r}),G{r})), 0)`
+        *   Column `G` (POA Avg, kWh/m²): `=IFERROR((D{r}+F{r})/2, 0)`
+        *   Column `H` (POA average, W/m²; feeds the loss estimates): `=IFERROR(IF(OR(C{r}=0,E{r}=0),IF(MAX(C{r},E{r})>$BA$7,MAX(C{r},E{r}),0),IF(AVERAGE(C{r},E{r})>$BA$7,AVERAGE(C{r},E{r}),0)), 0)`
+        *   **Column `I` (PR reference POA, kWh/m²)** — this is the irradiance the PR is divided by; its form depends on the **POA method** chosen in the GUI, and it is gated by the `>= $BA$7` minimum:
+            *   *Conditional MAX*: `=IFERROR(IF(({sel})*4000>=$BA$7,{sel},0), 0)` where `{sel}` = `IF(AND(D{r}=0,F{r}=0),0,IF(OR(D{r}=0,F{r}=0),MAX(D{r},F{r}),IF(J{r}>$BA$6,MAX(D{r},F{r}),G{r})))`
+            *   *Average*: same wrapper with `{sel}` = `IF(AND(D{r}=0,F{r}=0),0,IF(OR(D{r}=0,F{r}=0),MAX(D{r},F{r}),G{r}))` (no `$BA$6` deviation override)
         *   Column `J` (POA difference ratio): `=IFERROR(IF(AND(D{r}>0,F{r}>0),ABS(D{r}-F{r})/AVERAGE(D{r},F{r}),0), 0)`
-        *   Column `M` (Active Energy production): `=IFERROR((L{r}-K{r})*1000, 0)`
+        *   Column `M` (Active Energy production): `=IFERROR((L{r}-K{r})*1000, 0)` — note: rows whose meter reading was missing/anomalous are repaired (interpolated) and the `K/L/M` cells highlighted in orange with a note.
     *   **Nominal Parameters (Column BA)**:
         *   `BA4`: PVSyst PR Target as decimal (e.g., `0.897` written from GUI)
-        *   `BA6`: Irradiance acceptance limit ratio (e.g., `0.10` for 10% tolerance, user-defined from GUI, default 10%)
+        *   `BA6`: POA deviation tolerance between TX1/TX3 for the Conditional MAX method (e.g. `0.10` = 10%, user-defined from GUI, default 10%; not used when the POA method is *Average*)
         *   `BA7`: Minimum Irradiance threshold (e.g., `50` written from GUI)
     *   **Shifted Parameters Table (Columns BD & BH)**:
         *   `BD2`: English PR title header (e.g., `"1 May 2026 PR Calculation"`)
@@ -106,8 +114,8 @@ Must contain at least two worksheets with the following exact names and structur
         *   `BH8`: **PR from SCADA (Uncompensated PR % written from GUI, e.g., `37.529`)**
         *   `BH9`: Irradiance acceptance limit ratio (`=+BA6*100`)
         *   `BH10`: Minimum Irradiance threshold (`=+BA7`)
-        *   `BH11`: **PR Compensated [%] (Active Excel formula written from GUI)**:
-            `=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * (SUM($H$15:$H$110)*0.25/1000))) * 100`
+        *   `BH11`: **PR Compensated [%] (Active Excel formula written from GUI)** — denominator references the PR reference POA in Column I:
+            `=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * SUM($I$15:$I$110))) * 100`
 
 *   **`Inverter_data` Sheet**:
     *   **Rows 15 to 110**:
@@ -139,6 +147,14 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 
 ## Changelog
 
+### v11.0
+- **New Feature — POA Reference Toggle**: GUI selector for the PR reference irradiance — **Conditional MAX** (default, conservative) or **Media/Average** (IEC). The choice drives Column `I` of the daily file and therefore every PR figure (per-inverter row 111, `BA5`, `BH11`). Average yields a lower POA and thus a higher PR; pick one method and apply it consistently across periods.
+- **Methodology**: PR is now referenced to the threshold-gated Column `I` (`SUM($I$15:$I$110)`) instead of Column `H`. The minimum-irradiance gate (`>= $BA$7`, e.g. 50 W/m²) is applied to the PR reference. Python engine and Excel formulas verified identical to machine precision.
+- **New Feature — Meter Gap/Anomaly Repair**: Missing, zero, or backwards (negative-delta) SATAC meter readings are interpolated from the nearest valid neighbours; affected `K/L/M` cells are highlighted orange with an explanatory note, and the repair is logged.
+- **New Feature — Locked-File Recovery**: When a daily or Mother workbook is open elsewhere in Excel, the tool asks for confirmation and force-closes it via the Running Object Table, then retries — instead of aborting.
+- **Performance**: Daily formula columns are written in single bulk array calls (~480 → 5 COM round-trips per day).
+- **Security/Safety**: Excel COM opened with `AutomationSecurity = ForceDisable` (no auto-run macros); the Mother file is backed up (timestamped, last 5 kept) before each overwrite.
+
 ### v10.0
 - **New Feature**: Added user-controlled **Irradiance Difference Tolerance (%)** (value between 0% and 100%, default 10%) in the GUI to determine conditional max selection between weather stations TX1 and TX3, written to cell `BA6` in the daily worksheet.
 - **New Feature**: Added `PR Compensated` calculation using active formula written to daily cell `BH11`.
@@ -159,10 +175,10 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 To bundle the application into a standalone Windows executable:
 
 ```powershell
-pyinstaller --noconfirm "\\S01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\PR Calculation automation\PR Calculator v10.spec"
+pyinstaller --noconfirm "\\S01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\PR Calculation automation\PR Calculator v11.spec"
 ```
 
-This will produce the compiled standalone **`PR Calculator v10.exe`** under the main folder.
+This will produce the compiled standalone **`PR Calculator v11.exe`** under the main folder.
 
 ---
 

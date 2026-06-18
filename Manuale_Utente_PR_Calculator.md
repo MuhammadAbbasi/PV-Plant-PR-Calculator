@@ -35,7 +35,8 @@ L'interfaccia è stata progettata con un design chiaro moderno, pulito ed elegan
 | **Data (AAAA-MM-GG)** | Data del giorno in analisi. Viene rilevata e compilata automaticamente leggendo i dati dai file Excel selezionati. | Formato ISO (es. `2026-05-01`) |
 | **PR Mensile PVSyst** | Obiettivo mensile di Performance Ratio teorico, rilevato e compilato automaticamente dalla tabella di riferimento quando viene aggiornata la data. | Compilato in automatico |
 | **Irraggiamento Min (W/m²)** | Soglia minima di irraggiamento solare oltre la quale i calcoli di perdita di energia entrano in funzione. | `50` W/m² |
-| **Tolleranza Diff. Irraggiamento (%)** | Soglia di scostamento consentito (tra 0% e 100%) tra i sensori per il calcolo del Conditional MAX. Se superata, viene preso il valore massimo. | `10` % (Default) |
+| **Tolleranza Diff. Irraggiamento (%)** | Soglia di scostamento consentito (tra 0% e 100%) tra i sensori per il calcolo del Conditional MAX. Se superata, viene preso il valore massimo. (Usata solo con metodo *Conditional MAX*.) | `10` % (Default) |
+| **Riferimento POA per il PR** (selettore) | Metodo con cui si ricava l'irraggiamento di riferimento del PR dai due piranometri TX1/TX3. **Conditional MAX:** usa il sensore maggiore quando i due divergono oltre la tolleranza (più conservativo). **Media (Average):** media aritmetica dei due sensori (standard IEC). La scelta si applica a tutti i valori di PR. | `Conditional MAX` (Default) |
 
 ---
 
@@ -82,20 +83,21 @@ Mostra la tabella dei Target PR previsti da PVSyst per ciascun mese dell'anno. Q
 
 ## 📑 Dettaglio e Calcolo Excel (Generato Automaticamente)
 
-Anche se non visualizzati direttamente nell'interfaccia principale della v10, il software genera e popola automaticamente:
+Anche se non visualizzati direttamente nell'interfaccia principale della v11, il software genera e popola automaticamente:
 - **Dettagli dei 36 Inverter:** Codice inverter, trasformatore (TX1/2/3), potenza nominale, energia prodotta, perdite stimate e PR Compensato scritti direttamente nelle schede del file Excel.
 - **Formule Attive nel Foglio Giornaliero:** Formula per il PR Compensato (cella `BH11`) e per le perdite per trasformatore (riga 111).
+- **Riparazione Letture Contatore (v11):** Le letture del contatore SATAC mancanti, nulle o decrescenti (delta negativo) vengono rilevate e ricostruite per interpolazione tra i valori validi adiacenti. Le celle corrette vengono evidenziate in **arancione** con una nota esplicativa, così l'anomalia resta tracciabile.
 
 ---
 
-## 🧮 Formula di Dettaglio del PR Compensato (v10.0)
+## 🧮 Formula di Dettaglio del PR Compensato (v11.0)
 
-A partire dalla versione 10.0, il software scrive nel foglio `PR_Calc` (cella `BH11`) del file giornaliero la formula attiva per il calcolo del **PR Compensato**:
+Il software scrive nel foglio `PR_Calc` (cella `BH11`) del file giornaliero la formula attiva per il calcolo del **PR Compensato**. A partire dalla v11.0 il denominatore usa l'irraggiamento di riferimento della **Colonna I** (`SUM($I$15:$I$110)`), coerente con il metodo POA scelto (Conditional MAX o Media) e con la soglia minima di irraggiamento:
 
-$$\text{PR Compensato} = \left( \frac{\text{Energia Inverter Total} + \text{Loss TX1} + \text{Loss TX2} + \text{Loss TX3}}{\text{Irradiance Sum} \times \text{Plant CC Power}} \right) \times 100$$
+$$\text{PR Compensato} = \left( \frac{\text{Energia Inverter Total} + \text{Loss TX1} + \text{Loss TX2} + \text{Loss TX3}}{\text{Plant CC Power} \times \text{Irradiance Sum (Col. I)}} \right) \times 100$$
 
 Nello specifico, la formula Excel inserita è:
-`=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * (SUM($H$15:$H$110)*0.25/1000))) * 100`
+`=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * SUM($I$15:$I$110))) * 100`
 
 Questa formula viene poi sincronizzata nel file **Madre** mensile:
 * **Colonna H (PR VCOM / PR Total)**: Collegato alla cella `$BA$5*100` (PR Raw).
@@ -112,5 +114,7 @@ Questa formula viene poi sincronizzata nel file **Madre** mensile:
 > - **Errore "File Not Found":** Verifica che nella cartella selezionata siano presenti tutti e 7 i file SCADA richiesti (`TS_01_Inverter`, `SATAC_Meter`, ecc.).
 > - **Formato Numerico Italiano:** Nella GUI i numeri decimali vengono inseriti e visualizzati usando la virgola (es. `0,897` o `50,0`), in conformità con i requisiti locali. Il software converte automaticamente i valori in formato corretto per l'esportazione su Excel.
 > - **Errore "#DIV/0!" nei file generati:** È stato eliminato grazie alla funzione `IFERROR`. Se apri un file grezzo e vedi divisioni per zero nelle ore notturne, avvia il calcolo tramite questo software per ripristinare le formule corrette.
+> - **File Excel aperto / bloccato (v11):** Se un file giornaliero o il file Madre è già aperto in un'altra finestra di Excel, il software mostra una finestra di conferma e, se si accetta, lo chiude automaticamente per proseguire. Attenzione: eventuali modifiche non salvate in quel file andranno perse.
+> - **Celle arancioni nel file giornaliero (v11):** Segnalano letture del contatore SATAC mancanti o anomale ricostruite per interpolazione. Passare il mouse sulla cella per leggere la nota esplicativa. I valori di Energia e Disponibilità del giorno risultano così corretti.
 > - **Blocco di Rete SMB / Errore OLE:** Il software gestisce automaticamente i percorsi di rete UNC condivisi convertendo gli slash in backslash (`\`).
 

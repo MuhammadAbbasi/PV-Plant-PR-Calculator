@@ -17,6 +17,15 @@ PR CALCOLO FILE/
 scratch/
 .old_codes/
 
+# Automatic mother-file backups created at runtime
+_backups/
+
+# Manual backup copies and working screenshots
+* backup.*
+*backup*.py
+*backup*.xlsx
+gui_clean.png
+
 # Excel temporary files
 ~$*.xlsx
 

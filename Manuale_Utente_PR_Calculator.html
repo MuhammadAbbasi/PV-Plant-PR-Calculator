@@ -693,12 +693,12 @@
             </div>
 
             <div style="margin-top: 2rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 2rem; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);">
-                <h2 style="font-family: var(--font-head); font-size: 1.6rem; color: var(--border-hover); margin-bottom: 1rem;">🧮 Formula PR Compensato (v10.0)</h2>
+                <h2 style="font-family: var(--font-head); font-size: 1.6rem; color: var(--border-hover); margin-bottom: 1rem;">🧮 Formula PR Compensato (v11.0)</h2>
                 <p style="margin-bottom: 1rem; color: var(--text-main);">
-                    A partire dalla versione 10.0, il software scrive nel foglio <code>PR_Calc</code> (nella cella <strong>BH11</strong>) del file giornaliero la formula dinamica per il calcolo del <strong>PR Compensato</strong>:
+                    Il software scrive nel foglio <code>PR_Calc</code> (nella cella <strong>BH11</strong>) del file giornaliero la formula dinamica per il calcolo del <strong>PR Compensato</strong>. Dalla v11.0 il denominatore usa l'irraggiamento di riferimento della <strong>Colonna I</strong> (<code>SUM($I$15:$I$110)</code>), coerente con il metodo POA scelto (Conditional MAX o Media):
                 </p>
                 <div style="background: var(--bg-base); border-radius: 8px; padding: 1rem; font-family: monospace; font-size: 0.95rem; line-height: 1.5; overflow-x: auto; border-left: 4px solid var(--border-hover); margin-bottom: 1rem; color: var(--text-main);">
-                    =((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * (SUM($H$15:$H$110)*0.25/1000))) * 100
+                    =((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110)*0.25 + AA111 + AN111 + BA111) / (12625 * SUM($I$15:$I$110))) * 100
                 </div>
                 <p style="color: var(--text-muted); font-size: 0.95rem;">
                     Questa formula somma l'energia reale prodotta dai 36 inverter all'energia teorica persa per indisponibilità esterna (TX1, TX2 e TX3), dividendo poi per l'irraggiamento totale moltiplicato per la potenza nominale di targa dell'impianto.
