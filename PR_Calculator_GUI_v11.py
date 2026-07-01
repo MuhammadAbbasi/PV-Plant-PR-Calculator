@@ -1204,7 +1204,7 @@ class PRCalculatorGUI:
         
         for tx in ["TX1", "TX2", "TX3"]:
             cols = [f"{tx}-INV-{i}" for i in range(1, 13)]
-            df_result[f"{tx}_Average_Power"] = df_result[cols].apply(lambda r: r[r > 0].mean() if len(r[r > 0]) > 0 else 0.0, axis=1)
+            df_result[f"{tx}_Average_Power"] = df_result[cols].apply(lambda r: r[r > 1.0].mean() if len(r[r > 1.0]) > 0 else 0.0, axis=1)
             
         new_cols = {}
         for inv_id in self.dc_powers:
@@ -1213,9 +1213,9 @@ class PRCalculatorGUI:
             
             if tx_name in ["TX1", "TX3"]:
                 dt_loss_s = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] <= 0),
+                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0),
                     np.where(
-                        df_result[f"{tx_name}_Average_Power"] > 0,
+                        df_result[f"{tx_name}_Average_Power"] > 1.0,
                         df_result[f"{tx_name}_Average_Power"] * 0.25,
                         (df_result['h'] / 1000.0) * dc * pvsyst_pr * 0.25
                     ),
@@ -1231,13 +1231,13 @@ class PRCalculatorGUI:
                 new_cols[f"{inv_id}_loss"] = dt_loss_s + curt_loss_s
             else:
                 # Nested logic for TX2:
-                # If downtime condition AND average power <= 0:
+                # If downtime condition AND average power <= 1.0:
                 # loss = min(irrad_expected_power, ac_power_all * 0.876) * 0.25 (no curtailment added)
                 # Else:
-                # loss = (average_power * 0.25 if downtime and active <= 0 else 0) + curtailment_loss
+                # loss = (average_power * 0.25 if downtime and active < 1.0 else 0) + curtailment_loss
                 dt_loss_avg_zero = np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) * 0.25
                 dt_loss_avg_pos = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] <= 0),
+                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0),
                     df_result[f"{tx_name}_Average_Power"] * 0.25,
                     0.0
                 )
@@ -1247,12 +1247,12 @@ class PRCalculatorGUI:
                     0.0
                 )
                 dt_loss_s = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] <= 0) & (df_result[f"{tx_name}_Average_Power"] <= 0),
+                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0) & (df_result[f"{tx_name}_Average_Power"] <= 1.0),
                     dt_loss_avg_zero,
                     dt_loss_avg_pos
                 )
                 loss_s = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] <= 0) & (df_result[f"{tx_name}_Average_Power"] <= 0),
+                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0) & (df_result[f"{tx_name}_Average_Power"] <= 1.0),
                     dt_loss_avg_zero,
                     dt_loss_avg_pos + curt_loss_s
                 )
