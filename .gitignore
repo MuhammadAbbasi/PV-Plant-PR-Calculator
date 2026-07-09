@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Node
+node_modules/
+
+# Databases / caches
+*.db
+
 # Build and Distribution
 build/
 dist/
