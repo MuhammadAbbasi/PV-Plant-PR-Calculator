@@ -802,6 +802,28 @@ class PRCalculatorGUI:
                         return file_path
         return None
 
+    # Required SCADA inputs for one day, as (human label, filename patterns).
+    REQUIRED_DAY_FILES = [
+        ("Regolazione Potenza Attiva", ["Regolazione_della_potenza_attiva_*.xlsx", "*potenza_attiva*.xlsx"]),
+        ("Contatore SATAC",            ["SATAC_Meter_15Min.xlsx", "SATAC_Meter*.xlsx", "*SATAC*.xlsx"]),
+        ("Meteo TS1",                  ["TS_01_Weather_15Min.xlsx", "*Weather*01*.xlsx", "*TS_01*Weather*.xlsx"]),
+        ("Meteo TS3",                  ["TS_03_Weather_15Min.xlsx", "*Weather*03*.xlsx", "*TS_03*Weather*.xlsx"]),
+        ("Inverter TS1",               ["TS_01_Inverter_15Min.xlsx", "*Inverter*01*.xlsx", "*TS_01*Inverter*.xlsx"]),
+        ("Inverter TS2",               ["TS_02_Inverter_15Min.xlsx", "*Inverter*02*.xlsx", "*TS_02*Inverter*.xlsx"]),
+        ("Inverter TS3",               ["TS_03_Inverter_15Min.xlsx", "*Inverter*03*.xlsx", "*TS_03*Inverter*.xlsx"]),
+    ]
+
+    def _missing_files_for_day(self, folder):
+        """Return the labels of the required SCADA files that are NOT present in `folder`.
+        An empty list means the day has all 7 files and can be processed."""
+        if not os.path.isdir(folder):
+            return [label for label, _ in self.REQUIRED_DAY_FILES]
+        missing = []
+        for label, patterns in self.REQUIRED_DAY_FILES:
+            if not self.find_file_by_patterns(folder, patterns):
+                missing.append(label)
+        return missing
+
     def _ask_yes_no_on_gui(self, title, message):
         """Show a blocking yes/no dialog on the Tk main thread and return the answer.
         Safe to call from the worker thread: it marshals to the GUI thread and waits."""
@@ -1527,10 +1549,12 @@ class PRCalculatorGUI:
             
             # Write nominal parameters in Column BA (53)
             ws_calc.Cells(4, 53).Value = float(pvsyst_pr)           # BA4 = decimal PR (e.g. 0.897)
-            ws_calc.Cells(5, 53).Formula = "=((SUM(Tabella01MarzoInverter[[Active power TX1-INV-1]:[Active power TX1-INV-12]]," \
-                                           "Tabella01MarzoInverter[[Active power TX2-INV-1]:[Active power TX2-INV-12]]," \
-                                           "Tabella01MarzoInverter[[Active power TX3-INV-1]:[Active power TX3-INV-12]]) * 0.25) )" \
-                                           " / (12625 * SUM($I$15:$I$110))"
+            # BA5 = uncompensated (RAW) PR. Use DIRECT ranges (identical to BH11's
+            # numerator) instead of a structured table reference: the Inverter_data
+            # table is named differently across files (e.g. Tabella01MarzoInverter vs
+            # Tabella24MarzoInverter), and a missing table name makes Excel reject this
+            # formula with 0x800A0BEC. Direct ranges have no table-name dependency.
+            ws_calc.Cells(5, 53).Formula = "=((SUM(Inverter_data!C15:N110, Inverter_data!R15:AC110, Inverter_data!AG15:AR110) * 0.25)) / (12625 * SUM($I$15:$I$110))"
             ws_calc.Cells(6, 53).Value = float(diff_threshold)                     # BA6 is irradiance acceptance limit ratio
             ws_calc.Cells(7, 53).Value = float(threshold)          # BA7 is irradiance minimum value (e.g. 50)
             
@@ -1908,13 +1932,52 @@ class PRCalculatorGUI:
                 last_df_result = None
                 last_calc_results = None
                 self.all_days_results = []
-                
+
+                # Pre-scan: check that every day that will actually be processed has all
+                # required SCADA files. Days whose daily file already exists (and reprocess
+                # is off) are skipped anyway, so they are not checked. If any day is
+                # incomplete, ask the user whether to bypass it and process only the
+                # complete days, rather than aborting the whole month.
+                bypassed_days = {}
+                for day_str in numerical_subdirs:
+                    day_val = int(day_str)
+                    daily_filename = f"PR_recalculation_{day_val:02d}_{month_name}.xlsx"
+                    if os.path.exists(os.path.join(calcolo_folder, daily_filename)) and not reprocess_all:
+                        continue
+                    miss = self._missing_files_for_day(os.path.join(folder, day_str))
+                    if miss:
+                        bypassed_days[day_str] = miss
+
+                if bypassed_days:
+                    ordered = sorted(bypassed_days, key=lambda d: int(d))
+                    detail = "\n".join(f"   • Giorno {d}: mancano {', '.join(bypassed_days[d])}" for d in ordered)
+                    proceed = self._ask_yes_no_on_gui(
+                        "Dati mancanti per alcuni giorni",
+                        f"I seguenti giorni non hanno tutti i file SCADA richiesti:\n\n{detail}\n\n"
+                        "Vuoi saltare questi giorni ed elaborare il PR solo per i giorni completi?\n\n"
+                        "[Sì] = salta i giorni incompleti e continua\n"
+                        "[No] = annulla l'intera elaborazione."
+                    )
+                    if not proceed:
+                        raise RuntimeError(
+                            "Elaborazione annullata dall'utente: "
+                            f"{len(bypassed_days)} giorno/i senza tutti i file richiesti ({', '.join(ordered)})."
+                        )
+                    for d in ordered:
+                        print(f"[Batch] Giorno {d} SALTATO per dati mancanti: {', '.join(bypassed_days[d])}.")
+
+                bypassed_count = 0
                 for idx, day_str in enumerate(numerical_subdirs):
                     day_val = int(day_str)
                     target_date_str = f"{year_val:04d}-{month_val:02d}-{day_val:02d}"
                     daily_filename = f"PR_recalculation_{day_val:02d}_{month_name}.xlsx"
                     daily_file_path = os.path.join(calcolo_folder, daily_filename)
-                    
+
+                    # Skip days the user chose to bypass (incomplete data).
+                    if day_str in bypassed_days:
+                        bypassed_count += 1
+                        continue
+
                     # If daily file already exists and we are not forcing reprocess, skip this day folder!
                     if os.path.exists(daily_file_path) and not reprocess_all:
                         skipped_count += 1
@@ -1940,7 +2003,8 @@ class PRCalculatorGUI:
                 self.sync_mother_file(calcolo_folder, year_val, month_val)
                 
                 if processed_count == 0:
-                    status_msg = f"Tutti i {skipped_count} giorni erano già elaborati. Sincronizzato il file Madre."
+                    bypass_txt = f" {bypassed_count} saltati per dati mancanti." if bypassed_count else ""
+                    status_msg = f"Nessun nuovo giorno elaborato ({skipped_count} già presenti).{bypass_txt} Sincronizzato il file Madre."
                     self.root.after(0, lambda m=status_msg: self.lbl_status.config(text=m, foreground=self.success_color))
                     self.root.after(0, lambda: self.btn_calculate.config(state="normal"))
                     return
@@ -1949,7 +2013,8 @@ class PRCalculatorGUI:
                 self.df_result = last_df_result
                 self.calc_results = last_calc_results
                 
-                success_msg = f"Batch completato! Elaborati: {processed_count} giorni, Sincronizzato file Madre."
+                bypass_txt = f", {bypassed_count} saltati per dati mancanti" if bypassed_count else ""
+                success_msg = f"Batch completato! Elaborati: {processed_count} giorni{bypass_txt}. Sincronizzato file Madre."
                 self.root.after(0, lambda m=success_msg: self.lbl_status.config(text=m, foreground=self.success_color))
                 self.root.after(0, self.update_ui_on_success)
                 
