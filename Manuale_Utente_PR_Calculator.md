@@ -1,5 +1,7 @@
 # 📘 Manuale Utente & Guida Operativa - PR Calculator (GET SRL)
 
+> **Documento generato:** 2026-05-15 · **Ultimo aggiornamento:** 2026-07-09
+
 > [!IMPORTANT]
 > **Azienda:** GET SRL  
 > **Impianto:** Mazara 01 (36 Inverter fotovoltaici su 3 Trasformatori TX1, TX2, TX3)  
@@ -11,7 +13,7 @@
 
 L'interfaccia è stata progettata con un design chiaro moderno, pulito ed elegante ispirato a Google Material Design, suddiviso in aree funzionali per guidare l'utente junior passo dopo passo.
 
-![Guida Interfaccia Grafica con Aree Numerate](file:///\\s01\get\2025.01%20Mazara%2001%20A2A\03%20-%20REPORT\Report\09%20Testing\PR%20Calculation%20automation\gui_annotated_guide.png)
+![Guida Interfaccia Grafica con Aree Numerate](file:///\\s01\get\2025.01%20Mazara%2001%20A2A\03%20-%20REPORT\Report\09%20Testing\PR%20Calculation%20automation\archive\gui_annotated_guide.png)
 
 ---
 
