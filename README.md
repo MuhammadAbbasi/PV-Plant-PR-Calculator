@@ -1,8 +1,13 @@
-# PV Plant Performance Ratio (PR) Calculator - Mazara 01 (v11.0)
+# PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v11.0)
 
-A professional, high-performance Python-based tool designed for the **GET S.R.L.** Mazara 01 photovoltaic plant. This application automates the calculation of the Performance Ratio (PR), providing both raw and compensated metrics by processing SCADA data and weather station logs.
+> **Document generated:** 2026-05-15 · **Last updated:** 2026-07-09
 
-![GUI Preview](gui_annotated_guide.png)
+A professional, high-performance toolkit for the **GET S.R.L.** Mazara 01 photovoltaic plant. It has two components:
+
+1. **PR Calculator (`PR_Calculator_GUI_v11.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
+2. **PR Dashboard (`pr_dashboard/`)** — a local FastAPI + React web app that reads the generated Excel reports into a SQLite cache and visualises PR, energy, losses and per-inverter performance across year / month / day views.
+
+![PR Calculation & Dashboard Pipeline](assets/flow_diagram.png)
 
 ## Features
 
@@ -41,12 +46,27 @@ pip install pandas numpy openpyxl pywin32 Pillow
    ```
 
 2. **Template Configuration**:
-   Ensure the `original_format/` directory contains the required Excel templates:
+   Ensure the `original_format/` directory (in the project root — the calculator loads its pristine templates from here at runtime) contains:
    - `00 PR_recalculation_*.xlsx` (Monthly Mother file)
    - `PR_recalculation_26_apr.xlsx` (Pristine daily template - *v11.0 aligned*)
 
 3. **Assets**:
    Place company logos in the `assets/` folder (`logo.png`, `logo.ico`).
+
+### Repository Structure
+
+```
+.
+├── PR_Calculator_GUI_v11.py     # Current calculator (Tkinter desktop app)
+├── start_dashboard.py           # One-command launcher for the web dashboard
+├── pr_dashboard/                # PR Dashboard web app
+│   ├── backend/                 # FastAPI API + SQLite cache + Excel parser
+│   └── frontend/                # React + Vite UI (Chart.js)
+├── original_format/             # Pristine Excel templates (loaded at runtime)
+├── assets/                      # Logos and the flow diagram
+├── Manuale_Utente_PR_Calculator.md / .html   # User manual (Italian)
+└── archive/                     # Older versions, build artifacts and screenshots
+```
 
 ## How to Use
 
@@ -69,6 +89,42 @@ pip install pandas numpy openpyxl pywin32 Pillow
    - Select a parent folder containing subfolders named by day (e.g., `01`, `02`, `03` ... `31`).
    - Check **"Ricalcola forzatamente i giorni già elaborati"** to overwrite existing daily workbooks.
    - The tool will iterate through every day, generate individual child workbooks, and sync them to the monthly Mother file.
+
+---
+
+## 📈 PR Dashboard (Web App)
+
+The `pr_dashboard/` component turns the Excel reports produced by the calculator into an interactive, browser-based dashboard. It never re-computes PR — it **reads and visualises** the Mother and daily Child workbooks.
+
+### How it works
+
+1. **Launch** — `python start_dashboard.py`. On first run this installs any missing Python packages (`fastapi`, `uvicorn`, …), runs `npm install` + `npm run build` for the React frontend, then starts a FastAPI server (uvicorn) on **http://127.0.0.1:5896** and opens the browser automatically.
+2. **Sync** — on startup (and via the *Aggiorna* button / `POST /api/sync`) the backend scans the reports directory for `00 PR_recalculation_*.xlsx` (Mother) and `PR_recalculation_*.xlsx` (daily) files, parsing only those whose modification time changed (incremental cache).
+3. **Cache** — parsed data is stored in a local SQLite database (`pr_dashboard_cache.db`) across four tables: `file_meta`, `monthly_summaries`, `daily_summaries`, and 15-minute `daily_intervals`.
+4. **Visualise** — the React + Chart.js UI (Obsidian dark/light theme) offers **Year**, **Month** and **Day** views of PR (raw / SCADA / compensated), energy, availability, per-transformer losses, and per-inverter performance.
+
+### Reports directory
+
+The backend looks for reports at `../../../01 Daily Reports` relative to the project (the standard plant layout). Override it with an environment variable:
+
+```powershell
+$env:PR_REPORTS_DIR = "D:\path\to\01 Daily Reports"; python start_dashboard.py
+```
+
+### REST API
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/years` / `GET /api/months` | Available years / months in the cache |
+| `GET /api/monthly-data?year=&month=` | Daily rows for a month (incl. inverter PRs) |
+| `GET /api/daily-data?date=` | Daily summary + 15-minute intervals |
+| `GET /api/yearly-summary?year=` | Monthly aggregates for a year |
+| `GET /api/sync-status` · `POST /api/sync` | Cache/sync status and manual re-sync |
+
+### Prerequisites (dashboard)
+
+- Python 3.8+ with `fastapi` and `uvicorn` (auto-installed by the launcher)
+- [Node.js](https://nodejs.org/) (npm) — required once to build the frontend bundle
 
 ---
 
@@ -146,6 +202,9 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 ---
 
 ## Changelog
+
+### PR Dashboard 1.0 (2026-07-09)
+- **New Component — PR Dashboard**: Added `pr_dashboard/`, a local FastAPI + React/Vite web app that reads the generated Mother/daily Excel reports into a SQLite cache and visualises PR, energy, losses and per-inverter performance across Year / Month / Day views. Launch with `python start_dashboard.py`.
 
 ### v11.0
 - **New Feature — POA Reference Toggle**: GUI selector for the PR reference irradiance — **Conditional MAX** (default, conservative) or **Media/Average** (IEC). The choice drives Column `I` of the daily file and therefore every PR figure (per-inverter row 111, `BA5`, `BH11`). Average yields a lower POA and thus a higher PR; pick one method and apply it consistently across periods.
