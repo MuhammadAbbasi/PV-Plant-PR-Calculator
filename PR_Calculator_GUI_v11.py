@@ -843,10 +843,12 @@ class PRCalculatorGUI:
         self.root.after(0, _ask)
         return q.get()
 
-    def _force_close_workbook(self, file_path):
+    def _force_close_workbook(self, file_path, exclude_hwnd=None):
         """Force-close `file_path` in ANY running Excel instance (e.g. a window the user
         left open) by binding to it through the Running Object Table and calling Close
-        without saving. Returns True if a matching workbook was closed."""
+        without saving. If `exclude_hwnd` is given, the Excel Application with that window
+        handle is skipped -- used so we never close our OWN automation copy while evicting
+        external ones. Returns True if a matching workbook was closed."""
         import pythoncom
         import win32com.client
         target_base = os.path.basename(file_path).strip().lower()
@@ -880,7 +882,15 @@ class PRCalculatorGUI:
                     obj = rot.GetObject(moniker)
                     # GetObject returns a raw IUnknown; QueryInterface to IDispatch first.
                     wb = win32com.client.Dispatch(obj.QueryInterface(pythoncom.IID_IDispatch))
-                    _ = wb.FullName  # confirm it really is a Workbook
+                    if exclude_hwnd is not None:
+                        try:
+                            if int(wb.Application.Hwnd) == int(exclude_hwnd):
+                                continue  # never close our own automation instance
+                        except Exception:
+                            pass
+                    # NB: do NOT probe wb.FullName first -- a stuck instance (e.g. blocked
+                    # on a modal) errors on any property read, which would wrongly skip the
+                    # Close. Just attempt the Close; the path match above already targeted it.
                     wb.Close(SaveChanges=False)
                     closed_any = True
                     print(f"DEBUG: Workbook '{os.path.basename(disp)}' chiuso in un'altra istanza di Excel.")
@@ -890,11 +900,169 @@ class PRCalculatorGUI:
             print(f"DEBUG: enumerazione ROT fallita: {e}")
         return closed_any
 
+    def _pid_from_excel_app(self, excel_app):
+        """Return the OS process id backing an Excel Application COM object (or None)."""
+        try:
+            import win32process
+            hwnd = int(excel_app.Hwnd)
+            _thread_id, pid = win32process.GetWindowThreadProcessId(hwnd)
+            return int(pid)
+        except Exception:
+            return None
+
+    def _kill_processes_locking_file(self, file_path, exclude_pids=()):
+        """Last resort when a graceful ROT close fails: terminate the EXCEL.EXE process(es)
+        that still hold an OS lock on `file_path` (typically a stuck/orphaned automation
+        instance frozen on a modal). Scoped tightly -- only Excel processes with THIS exact
+        file, or its Office '~$' owner file, open are killed; our own PIDs are excluded so
+        we never kill the running automation instance or this Python process."""
+        try:
+            import psutil
+        except Exception as e:
+            print(f"DEBUG: psutil non disponibile, impossibile terminare i processi bloccanti: {e}")
+            return False
+        try:
+            target_full = os.path.normcase(os.path.abspath(file_path))
+        except Exception:
+            target_full = None
+        target_base = os.path.basename(file_path).lower()
+        owner_base = ("~$" + os.path.basename(file_path)).lower()
+        exclude = {os.getpid()} | {int(p) for p in exclude_pids if p}
+        killed = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                if (proc.info.get('name') or '').lower() != 'excel.exe':
+                    continue
+                if proc.info['pid'] in exclude:
+                    continue
+                try:
+                    ofiles = proc.open_files()
+                except Exception:
+                    ofiles = []
+                hit = False
+                for f in ofiles:
+                    fp = f.path
+                    try:
+                        if target_full is not None and os.path.normcase(os.path.abspath(fp)) == target_full:
+                            hit = True
+                            break
+                    except Exception:
+                        pass
+                    if os.path.basename(fp).lower() in (target_base, owner_base):
+                        hit = True
+                        break
+                if hit:
+                    proc.kill()
+                    killed.append(proc.info['pid'])
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+            except Exception:
+                continue
+        if killed:
+            print(f"DEBUG: Terminato/i processo/i Excel bloccante/i '{target_base}': PID {killed}")
+        return len(killed) > 0
+
+    def _save_workbook_resilient(self, wb, excel_app, abs_path, date_str, attempts=3):
+        """Save `wb` without ever hanging on a file that is also open elsewhere.
+
+        A plain `wb.Save()` to a network share blocks indefinitely when another Excel
+        window (or an orphaned EXCEL.EXE) holds the file, because the sharing-violation
+        prompt is not covered by DisplayAlerts. This helper hardens the app against modal
+        dialogs, force-closes any EXTERNAL copy of the file (never our own instance)
+        before each attempt, retries, and finally falls back to an atomic temp-file
+        replace. Raises RuntimeError only if every strategy fails."""
+        import time as _time
+        try:
+            own_hwnd = int(excel_app.Hwnd)
+        except Exception:
+            own_hwnd = None
+        own_pid = self._pid_from_excel_app(excel_app)
+
+        # Suppress any interactive/modal prompt so a locked save raises instead of hanging.
+        saved_flags = {}
+        for prop, val in (("DisplayAlerts", False), ("Interactive", False),
+                          ("AskToUpdateLinks", False), ("EnableEvents", False)):
+            try:
+                saved_flags[prop] = getattr(excel_app, prop)
+            except Exception:
+                saved_flags[prop] = None
+            try:
+                setattr(excel_app, prop, val)
+            except Exception:
+                pass
+
+        last_err = None
+        try:
+            for i in range(attempts):
+                # Evict any external window holding the file before trying to save.
+                try:
+                    if self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd):
+                        print(f"[{date_str}] Copia esterna aperta di "
+                              f"'{os.path.basename(abs_path)}' chiusa forzatamente prima del salvataggio.")
+                except Exception:
+                    pass
+                try:
+                    wb.Save()
+                    return True
+                except Exception as e:
+                    last_err = e
+                    print(f"[{date_str}] DEBUG: Salvataggio bloccato (tentativo {i + 1}/{attempts}): {e}. "
+                          "Nuovo tentativo dopo chiusura forzata...")
+                    # If a stuck instance won't release via ROT, kill the process holding
+                    # the file (never our own automation instance) before the next attempt.
+                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,))
+                    _time.sleep(1.0)
+
+            # Last resort: save to a temp file next to the target, then atomically replace.
+            base, ext = os.path.splitext(abs_path)
+            tmp_path = f"{base}.__saving__{ext}"
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            wb.SaveAs(tmp_path)
+            try:
+                wb.Close(SaveChanges=False)
+            except Exception:
+                pass
+            # Make sure nothing holds the real target, then swap the temp file in.
+            self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
+            self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,))
+            os.replace(tmp_path, abs_path)
+            print(f"[{date_str}] File '{os.path.basename(abs_path)}' salvato tramite "
+                  "copia temporanea e sostituzione atomica (il file era aperto altrove).")
+            return True
+        except Exception as e2:
+            raise RuntimeError(
+                f"Impossibile salvare '{os.path.basename(abs_path)}' anche dopo la chiusura "
+                f"forzata delle copie aperte: {last_err or e2}"
+            )
+        finally:
+            # Restore Interactive so later opens on the shared app are not blocked.
+            try:
+                excel_app.Interactive = True if saved_flags.get("Interactive") is None else saved_flags["Interactive"]
+            except Exception:
+                pass
+
     def _open_workbook_writable(self, excel_app, abs_path, max_prompts=2):
-        """Open a workbook for writing. If it is locked by another Excel window the file
-        opens read-only; in that case ask the user for permission to close it there, force
-        it closed, and retry. Raises RuntimeError if the user declines or it stays locked."""
-        wb = excel_app.Workbooks.Open(abs_path, UpdateLinks=0)
+        """Open a workbook for writing. If it is locked (opens read-only) because another
+        Excel window -- or a stuck/orphaned automation instance -- holds it, ask the user
+        for permission, then escalate: (1) gracefully close the workbook in the other
+        instance via the ROT, and if that fails (2) kill the EXCEL.EXE process still
+        holding the file. Retries after each step. Raises RuntimeError if the user declines
+        or it stays locked."""
+        own_hwnd = None
+        try:
+            own_hwnd = int(excel_app.Hwnd)
+        except Exception:
+            pass
+        own_pid = self._pid_from_excel_app(excel_app)
+
+        def _reopen():
+            return excel_app.Workbooks.Open(abs_path, UpdateLinks=0)
+
+        wb = _reopen()
         attempts = 0
         while getattr(wb, "ReadOnly", False) and attempts < max_prompts:
             attempts += 1
@@ -914,8 +1082,23 @@ class PRCalculatorGUI:
                     f"Elaborazione annullata dall'utente: il file '{os.path.basename(abs_path)}' "
                     "è aperto in Excel e non è stato chiuso."
                 )
-            self._force_close_workbook(abs_path)
-            wb = excel_app.Workbooks.Open(abs_path, UpdateLinks=0)
+            # (1) graceful: close the workbook in any OTHER Excel instance.
+            closed = self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
+            # (2) aggressive: a stuck instance won't respond to Close -- kill the process
+            #     that still holds the file (never our own automation instance / this PID).
+            if not closed:
+                self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,))
+            wb = _reopen()
+
+        if getattr(wb, "ReadOnly", False):
+            # Final escalation before giving up: force-kill the locking process and retry once.
+            try:
+                wb.Close(SaveChanges=False)
+            except Exception:
+                pass
+            if self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,)):
+                wb = _reopen()
+
         if getattr(wb, "ReadOnly", False):
             try:
                 wb.Close(SaveChanges=False)
@@ -1228,11 +1411,33 @@ class PRCalculatorGUI:
             cols = [f"{tx}-INV-{i}" for i in range(1, 13)]
             df_result[f"{tx}_Average_Power"] = df_result[cols].apply(lambda r: r[r > 1.0].mean() if len(r[r > 1.0]) > 0 else 0.0, axis=1)
             
+        # Variant B: outage-recovery (ramp) loss. Flag intervals where the WHOLE plant is
+        # offline (all 36 inverters < 1.0 kW). The intervals immediately before/after such a
+        # trip are the ramp-down/ramp-up shoulders, where an inverter can read >1 kW yet still
+        # be far below its POA-expected output -- energy the zero-output downtime test misses.
+        # Scoped to trip-adjacent intervals so normal daily under-production
+        # (soiling/temperature/low-sun ramp) is NOT counted.
+        all_inv_cols = [f"{tx}-INV-{i}" for tx in ["TX1", "TX2", "TX3"] for i in range(1, 13)]
+        plant_off = (df_result[all_inv_cols] < 1.0).all(axis=1)
+        adj_outage = (plant_off | plant_off.shift(1, fill_value=False) | plant_off.shift(-1, fill_value=False)).values
+
         new_cols = {}
         for inv_id in self.dc_powers:
             dc = self.dc_powers[inv_id]
             tx_name = inv_id.split("-")[0]
-            
+
+            # Same ramp-loss rule for every inverter: booked only on trip-adjacent, sun-up,
+            # producing, non-curtailed intervals; equals the POA-expected shortfall.
+            # Mutually exclusive with dt_loss (needs inv<1 kW) and curt_loss (needs limit<0.875).
+            ramp_loss_s = np.where(
+                adj_outage
+                & (df_result['h'] > threshold).values
+                & (df_result[inv_id] >= 1.0).values
+                & (df_result['limit_ratio'] >= 0.875).values,
+                np.maximum(0.0, np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) - df_result[inv_id]) * 0.25,
+                0.0
+            )
+
             if tx_name in ["TX1", "TX3"]:
                 dt_loss_s = np.where(
                     (df_result['h'] > threshold) & (df_result[inv_id] < 1.0),
@@ -1243,14 +1448,21 @@ class PRCalculatorGUI:
                     ),
                     0.0
                 )
+                # Curtailment only applies to a PRODUCING inverter (>=1 kW). During a full
+                # outage the active-power regulation signal also reads ~0 (limit_ratio ~0.001),
+                # which would otherwise book a spurious curtailment loss ON TOP of the downtime
+                # loss for the same dead interval -- double counting that pushed the compensated
+                # PR above 100% on heavy-outage days. Gating on inv>=1 keeps downtime and
+                # curtailment mutually exclusive.
                 curt_loss_s = np.where(
-                    df_result['limit_ratio'] < 0.875,
+                    (df_result['limit_ratio'] < 0.875) & (df_result[inv_id] >= 1.0),
                     np.maximum(0.0, np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) - self.ac_power_all * df_result['limit_ratio']) * 0.25,
                     0.0
                 )
                 new_cols[f"{inv_id}_dt_loss"] = dt_loss_s
                 new_cols[f"{inv_id}_curt_loss"] = curt_loss_s
-                new_cols[f"{inv_id}_loss"] = dt_loss_s + curt_loss_s
+                new_cols[f"{inv_id}_ramp_loss"] = ramp_loss_s
+                new_cols[f"{inv_id}_loss"] = dt_loss_s + curt_loss_s + ramp_loss_s
             else:
                 # Nested logic for TX2:
                 # If downtime condition AND average power <= 1.0:
@@ -1263,8 +1475,14 @@ class PRCalculatorGUI:
                     df_result[f"{tx_name}_Average_Power"] * 0.25,
                     0.0
                 )
+                # Curtailment only applies to a PRODUCING inverter (>=1 kW). During a full
+                # outage the active-power regulation signal also reads ~0 (limit_ratio ~0.001),
+                # which would otherwise book a spurious curtailment loss ON TOP of the downtime
+                # loss for the same dead interval -- double counting that pushed the compensated
+                # PR above 100% on heavy-outage days. Gating on inv>=1 keeps downtime and
+                # curtailment mutually exclusive.
                 curt_loss_s = np.where(
-                    df_result['limit_ratio'] < 0.875,
+                    (df_result['limit_ratio'] < 0.875) & (df_result[inv_id] >= 1.0),
                     np.maximum(0.0, np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) - self.ac_power_all * df_result['limit_ratio']) * 0.25,
                     0.0
                 )
@@ -1280,7 +1498,8 @@ class PRCalculatorGUI:
                 )
                 new_cols[f"{inv_id}_dt_loss"] = dt_loss_s
                 new_cols[f"{inv_id}_curt_loss"] = curt_loss_s
-                new_cols[f"{inv_id}_loss"] = loss_s
+                new_cols[f"{inv_id}_ramp_loss"] = ramp_loss_s
+                new_cols[f"{inv_id}_loss"] = loss_s + ramp_loss_s
             
         for tx in ["TX1", "TX2", "TX3"]:
             loss_cols = [f"{tx}-INV-{i}_loss" for i in range(1, 13)]
@@ -1575,18 +1794,22 @@ class PRCalculatorGUI:
             except Exception:
                 pass
                 
-            wb_daily.Save()
+            self._save_workbook_resilient(wb_daily, excel_daily, abs_daily_path, date_str)
             print(f"[{date_str}] File giornaliero '{daily_filename}' salvato con successo via Excel COM!")
         except Exception as ex:
             print(f"[{date_str}] Errore durante l'aggiornamento del file giornaliero via Excel COM: {ex}")
-            if 'wb_daily' in locals() and wb_daily:
-                try:
-                    wb_daily.Close(SaveChanges=False)
-                except Exception:
-                    pass
             raise ex
         finally:
-            pass
+            # ALWAYS release the daily workbook. Otherwise, in a month-long batch the shared
+            # (invisible) Excel instance accumulates one open network workbook per day; since
+            # Calculation is an app-level setting, each day then recalculates EVERY still-open
+            # workbook, and the growing load wedged Save() around the ~20th file. Closing here
+            # keeps exactly one daily workbook open at a time.
+            try:
+                if 'wb_daily' in locals() and wb_daily is not None:
+                    wb_daily.Close(SaveChanges=False)
+            except Exception:
+                pass
             
         # Update mother file
         if not skip_mother_update:
@@ -1882,8 +2105,11 @@ class PRCalculatorGUI:
             except Exception:
                 pass
                 
-            wb_mother.Save()
-            wb_mother.Close(SaveChanges=True)
+            self._save_workbook_resilient(wb_mother, excel, abs_mother_path, "MADRE")
+            try:
+                wb_mother.Close(SaveChanges=False)  # already persisted by resilient save
+            except Exception:
+                pass
             print(f"Sincronizzazione completata! Giorni aggiornati nel file Madre: {sync_count}")
         except Exception as ex:
             print(f"Errore durante l'aggiornamento del file Madre via Excel COM: {ex}")
