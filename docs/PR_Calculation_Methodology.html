@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Calculation Methodology — Mazara 01</title>
+<style>
+  :root{
+    --bg:#0b1120; --panel:#111a2e; --panel2:#0f1728; --card:#152238;
+    --edge:#25324a; --txt:#e2e8f0; --muted:#94a3b8; --accent:#22c55e;
+    --accent2:#38bdf8; --warn:#f59e0b; --danger:#ef4444; --code:#0a1526;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font-family:"Segoe UI",system-ui,-apple-system,sans-serif;line-height:1.6;}
+  /* Language toggling */
+  body.lang-en .lang-it{display:none}
+  body.lang-it .lang-en{display:none}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  header{position:sticky;top:0;z-index:50;background:linear-gradient(90deg,#0b1120,#111a2e);
+         border-bottom:1px solid var(--edge);padding:14px 24px;display:flex;
+         align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:700}
+  header .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .langswitch{display:flex;border:1px solid var(--edge);border-radius:10px;overflow:hidden}
+  .langswitch button{background:transparent;color:var(--muted);border:0;padding:8px 16px;
+        cursor:pointer;font-weight:700;font-size:13px}
+  .langswitch button.active{background:var(--accent);color:#04240f}
+  .layout{display:grid;grid-template-columns:260px 1fr;gap:0;max-width:1240px;margin:0 auto}
+  nav.toc{position:sticky;top:64px;align-self:start;height:calc(100vh - 64px);
+          overflow:auto;padding:24px 16px;border-right:1px solid var(--edge)}
+  nav.toc h4{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.08em;margin:16px 0 8px}
+  nav.toc a{display:block;color:var(--txt);padding:6px 10px;border-radius:8px;font-size:14px}
+  nav.toc a:hover{background:var(--panel);text-decoration:none}
+  main{padding:28px 34px;min-width:0}
+  section{margin-bottom:34px;scroll-margin-top:72px}
+  h2{font-size:24px;border-bottom:2px solid var(--accent);padding-bottom:8px;margin-top:8px}
+  h3{font-size:18px;color:#cbd5e1;margin-top:26px}
+  h4{font-size:15px;color:#cbd5e1}
+  p,li{color:#dbe4ef}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--edge);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel);color:#cbd5e1}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  code,pre{font-family:"Cascadia Code",Consolas,monospace}
+  pre{background:var(--code);border:1px solid var(--edge);border-radius:10px;padding:14px 16px;
+      overflow:auto;color:#cfe8ff;font-size:13.5px}
+  code{background:rgba(56,189,248,.12);color:#bae6fd;padding:1px 6px;border-radius:5px;font-size:13px}
+  pre code{background:none;color:inherit;padding:0}
+  .callout{border-left:4px solid var(--accent2);background:var(--panel);padding:10px 16px;
+           border-radius:0 10px 10px 0;margin:14px 0}
+  .callout.warn{border-color:var(--warn)}
+  .callout.def{border-color:var(--accent)}
+  .pill{display:inline-block;background:var(--panel);border:1px solid var(--edge);border-radius:999px;
+        padding:2px 10px;font-size:12px;color:var(--muted);margin:2px}
+  /* Collapsible */
+  .acc-head{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+  .acc-head::before{content:"▾";color:var(--accent);transition:transform .2s;font-size:14px}
+  .collapsed .acc-head::before{transform:rotate(-90deg)}
+  .collapsed .acc-body{display:none}
+  /* Interactive tools */
+  .tool{background:var(--card);border:1px solid var(--edge);border-radius:14px;padding:18px 20px;margin:16px 0}
+  .tool h4{margin:0 0 12px;color:#fff}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .fld input,.fld select{width:100%;background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+        border-radius:8px;padding:8px 10px;font-size:14px}
+  .result{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .metric{background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:12px 14px}
+  .metric .k{font-size:12px;color:var(--muted)}
+  .metric .v{font-size:22px;font-weight:700;color:var(--accent)}
+  .metric .v.warnval{color:var(--danger)}
+  .metric small{color:var(--muted);font-weight:400}
+  footer{max-width:1240px;margin:0 auto;padding:20px 34px;color:var(--muted);
+         font-size:12px;border-top:1px solid var(--edge)}
+  @media(max-width:880px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+</style>
+</head>
+<body class="lang-en">
+<header>
+  <div>
+    <h1>Performance Ratio (PR) — Calculation Methodology</h1>
+    <div class="sub">Mazara 01 PV Plant · GET S.R.L. · <span class="lang-en">Interactive guide</span><span class="lang-it">Guida interattiva</span></div>
+  </div>
+  <div class="langswitch" role="group" aria-label="Language">
+    <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
+    <button id="btn-it" onclick="setLang('it')">IT</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ================= NAV ================= -->
+  <nav class="toc">
+    <h4><span class="lang-en">Contents</span><span class="lang-it">Indice</span></h4>
+    <a href="#intro"><span class="lang-en">1. Introduction</span><span class="lang-it">1. Introduzione</span></a>
+    <a href="#sources"><span class="lang-en">2. Data Sources</span><span class="lang-it">2. Fonti dati</span></a>
+    <a href="#formulae"><span class="lang-en">3. Core Formulae</span><span class="lang-it">3. Formule principali</span></a>
+    <a href="#walkthrough"><span class="lang-en">4. Walkthrough</span><span class="lang-it">4. Esempio passo passo</span></a>
+    <a href="#tools"><span class="lang-en">★ Interactive Tools</span><span class="lang-it">★ Strumenti interattivi</span></a>
+    <a href="#faq"><span class="lang-en">5. FAQ</span><span class="lang-it">5. Domande frequenti</span></a>
+    <a href="#glossary"><span class="lang-en">6. Glossary</span><span class="lang-it">6. Glossario</span></a>
+  </nav>
+
+  <main>
+    <!-- ================= 1. INTRO ================= -->
+    <section id="intro">
+      <h2><span class="lang-en">1. Introduction to PR Calculation</span><span class="lang-it">1. Introduzione al calcolo del PR</span></h2>
+      <p class="lang-en"><b>Performance Ratio (PR)</b> answers one question: <i>"Of all the energy the plant <b>could</b> have produced given the sunlight it received, how much did it <b>actually</b> produce?"</i> A PR of 100% would mean zero losses. Real plants sit below 100%; Mazara 01 typically runs around <b>82–83%</b>.</p>
+      <p class="lang-it"><b>Performance Ratio (PR)</b> risponde a una domanda: <i>"Di tutta l'energia che l'impianto <b>avrebbe potuto</b> produrre data la luce ricevuta, quanta ne ha <b>effettivamente</b> prodotta?"</i> Un PR del 100% significherebbe zero perdite. Gli impianti reali stanno sotto il 100%; Mazara 01 si attesta intorno all'<b>82–83%</b>.</p>
+      <pre><code>              <span class="lang-en">Actual energy produced</span><span class="lang-it">Energia effettivamente prodotta</span>
+PR (%) =  ------------------------------------------  × 100
+          <span class="lang-en">Energy the sunlight could support</span><span class="lang-it">Energia che la luce poteva sostenere</span></code></pre>
+      <div class="callout def">
+        <span class="lang-en"><b>Why it matters:</b> the operator has a contractual guarantee (Allegato 9.1) to keep PR above a yearly target; falling below triggers a penalty. The calculation must be transparent and repeatable.</span>
+        <span class="lang-it"><b>Perché conta:</b> l'Operatore ha una garanzia contrattuale (Allegato 9.1) di mantenere il PR sopra un obiettivo annuo; scendere sotto attiva una penale. Il calcolo deve essere trasparente e ripetibile.</span>
+      </div>
+      <h3><span class="lang-en">The four PR figures</span><span class="lang-it">I quattro valori di PR</span></h3>
+      <table>
+        <tr><th><span class="lang-en">Name</span><span class="lang-it">Nome</span></th><th><span class="lang-en">Plain meaning</span><span class="lang-it">Significato semplice</span></th></tr>
+        <tr><td><b>Raw PR</b></td><td><span class="lang-en">Actual-vs-ideal, no allowances. Drops on any downtime.</span><span class="lang-it">Reale-vs-ideale, senza correzioni. Cala ad ogni fermo.</span></td></tr>
+        <tr><td><b>SCADA PR</b></td><td><span class="lang-en">Reported by the plant's control system (KPI export).</span><span class="lang-it">Riportato dal sistema di controllo dell'impianto (export KPI).</span></td></tr>
+        <tr><td><b>VCOM PR</b></td><td><span class="lang-en">Reported by the independent VCOM platform.</span><span class="lang-it">Riportato dalla piattaforma indipendente VCOM.</span></td></tr>
+        <tr><td><b>Compensated PR</b></td><td><span class="lang-en">Raw PR <b>plus</b> energy lost to outages/curtailment, added back. The figure aligned with the guarantee.</span><span class="lang-it">PR Raw <b>più</b> l'energia persa per fermi/limitazioni, riaggiunta. Il valore allineato alla garanzia.</span></td></tr>
+      </table>
+      <div class="callout"><span class="lang-en"><b>SCADA</b> = the plant's on-site Supervisory Control And Data Acquisition system. <b>VCOM</b> = independent third-party monitoring platform.</span><span class="lang-it"><b>SCADA</b> = sistema di controllo e acquisizione dati in campo. <b>VCOM</b> = piattaforma di monitoraggio indipendente di terza parte.</span></div>
+    </section>
+
+    <!-- ================= 2. SOURCES ================= -->
+    <section id="sources">
+      <h2><span class="lang-en">2. Data Sources Used</span><span class="lang-it">2. Fonti dati utilizzate</span></h2>
+      <p><span class="lang-en">Each day reads raw files sampled every <b>15 minutes</b> (<b>96 intervals/day</b>).</span><span class="lang-it">Ogni giorno legge file grezzi campionati ogni <b>15 minuti</b> (<b>96 intervalli/giorno</b>).</span></p>
+      <table>
+        <tr><th>File</th><th><span class="lang-en">Contains</span><span class="lang-it">Contiene</span></th><th><span class="lang-en">Role</span><span class="lang-it">Ruolo</span></th></tr>
+        <tr><td><code>TS_01/02/03_Inverter_15Min.xlsx</code></td><td><span class="lang-en">Active power (kW) of 36 inverters (TX1/TX2/TX3 × 12)</span><span class="lang-it">Potenza attiva (kW) dei 36 inverter (TX1/TX2/TX3 × 12)</span></td><td><span class="lang-en">Actual energy &amp; downtime detection</span><span class="lang-it">Energia effettiva e rilevamento fermi</span></td></tr>
+        <tr><td><code>TS_01/03_Weather_15Min.xlsx</code></td><td><span class="lang-en">Irradiance (W/m²) from POA pyranometers TX1 &amp; TX3</span><span class="lang-it">Irraggiamento (W/m²) dai piranometri POA TX1 e TX3</span></td><td><span class="lang-en">Sunlight received (denominator)</span><span class="lang-it">Sole ricevuto (denominatore)</span></td></tr>
+        <tr><td><code>SATAC_Meter_15Min.xlsx</code></td><td><span class="lang-en">Cumulative revenue-meter energy (kWh)</span><span class="lang-it">Energia cumulativa del contatore fiscale (kWh)</span></td><td><span class="lang-en">Energy exported &amp; availability</span><span class="lang-it">Energia immessa e disponibilità</span></td></tr>
+        <tr><td><code>Regolazione_..._YYYY_MM_DD.xlsx</code></td><td><span class="lang-en">Active-power regulation limit ratio (0–1)</span><span class="lang-it">Rapporto di limitazione potenza attiva (0–1)</span></td><td><span class="lang-en">Curtailment detection</span><span class="lang-it">Rilevamento limitazione</span></td></tr>
+        <tr><td><code>KPI_Report_Daily.xls</code></td><td><span class="lang-en">Vendor SCADA daily PR (%)</span><span class="lang-it">PR SCADA giornaliero del fornitore (%)</span></td><td><span class="lang-en">→ Mother "PR SCADA" column</span><span class="lang-it">→ Colonna "PR SCADA" del Madre</span></td></tr>
+        <tr><td><code>Performance_ratio_vcom.csv</code></td><td><span class="lang-en">VCOM daily PR (%) — UTF-16, tab-sep</span><span class="lang-it">PR VCOM giornaliero (%) — UTF-16, tab</span></td><td><span class="lang-en">→ Mother "PR VCOM" column</span><span class="lang-it">→ Colonna "PR VCOM" del Madre</span></td></tr>
+      </table>
+      <div class="callout def"><span class="lang-en"><b>Pyranometer</b> = measures solar irradiance (W/m²). <b>POA</b> = Plane Of Array, sunlight on the panels' own plane. <b>Curtailment</b> = grid-ordered reduction of output.</span><span class="lang-it"><b>Piranometro</b> = misura l'irraggiamento (W/m²). <b>POA</b> = Plane Of Array, la luce sul piano dei pannelli. <b>Curtailment</b> = riduzione della produzione ordinata dalla rete.</span></div>
+      <h3><span class="lang-en">Key constants</span><span class="lang-it">Costanti principali</span></h3>
+      <table>
+        <tr><th>Input</th><th><span class="lang-en">Value</span><span class="lang-it">Valore</span></th></tr>
+        <tr><td><span class="lang-en">Total nameplate (P_nominal)</span><span class="lang-it">Nominale totale (P_nominale)</span></td><td><b>12,625 kWp</b></td></tr>
+        <tr><td><span class="lang-en">Per-inverter DC power</span><span class="lang-it">Potenza DC per inverter</span></td><td>328.1 – 359.4 kWp</td></tr>
+        <tr><td><span class="lang-en">Inverter AC cap</span><span class="lang-it">Limite AC inverter</span></td><td>320 kW (≈ 280.3 <span class="lang-en">usable</span><span class="lang-it">utile</span>)</td></tr>
+        <tr><td><span class="lang-en">Minimum irradiance threshold</span><span class="lang-it">Soglia minima irraggiamento</span></td><td>50 W/m²</td></tr>
+        <tr><td><span class="lang-en">POA deviation tolerance</span><span class="lang-it">Tolleranza scostamento POA</span></td><td>10%</td></tr>
+        <tr><td><span class="lang-en">Annual degradation</span><span class="lang-it">Degradazione annua</span></td><td>0.4%/<span class="lang-en">yr from Feb 2025</span><span class="lang-it">anno da feb 2025</span></td></tr>
+      </table>
+      <h4><span class="lang-en">PVSyst monthly target PR (Year 1)</span><span class="lang-it">Target PR mensile PVSyst (Anno 1)</span></h4>
+      <table><tr><th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th></tr>
+      <tr><td>90.4</td><td>89.6</td><td>89.7</td><td>86.8</td><td>83.2</td><td>83.3</td><td>82.0</td><td>82.8</td><td>85.2</td><td>87.6</td><td>89.4</td><td>90.0</td></tr></table>
+    </section>
+
+    <!-- ================= 3. FORMULAE ================= -->
+    <section id="formulae">
+      <h2><span class="lang-en">3. Core Formulae with Annotations</span><span class="lang-it">3. Formule principali con annotazioni</span></h2>
+
+      <h3><span class="lang-en">3.1 Reference irradiance (Column I)</span><span class="lang-it">3.1 Irraggiamento di riferimento (Colonna I)</span></h3>
+      <p><span class="lang-en">Convert each 15-min irradiance reading to energy density:</span><span class="lang-it">Converti ogni lettura di irraggiamento da 15 min in densità di energia:</span></p>
+      <pre><code>kWh/m²  =  W/m²  ÷  4000        <span class="lang-en">(÷1000 W→kW, ÷4 for 15 min)</span><span class="lang-it">(÷1000 W→kW, ÷4 per 15 min)</span></code></pre>
+      <p><span class="lang-en">Pick one reference from the two sensors (<b>Conditional MAX</b>, default):</span><span class="lang-it">Scegli un riferimento tra i due sensori (<b>MAX Condizionale</b>, predefinito):</span></p>
+      <pre><code><span class="lang-en">if both 0:            reference = 0
+if exactly one 0:    reference = working sensor
+if |P1−P3|/avg > 10%: reference = HIGHER sensor
+else:                reference = average
+gate: if reference×4000 < 50 W/m² → 0</span><span class="lang-it">se entrambi 0:        riferimento = 0
+se uno solo 0:        riferimento = sensore attivo
+se |P1−P3|/media>10%: riferimento = sensore PIÙ ALTO
+altrimenti:           riferimento = media
+soglia: se rif×4000 < 50 W/m² → 0</span></code></pre>
+      <div class="callout"><span class="lang-en">A dirty/shaded sensor reads too low; trusting the higher one is conservative and avoids inflating PR. <code>Σ I</code> = daily sum of Column I (kWh/m²).</span><span class="lang-it">Un sensore sporco/in ombra legge troppo basso; fidarsi del più alto è prudente ed evita di gonfiare il PR. <code>Σ I</code> = somma giornaliera della Colonna I (kWh/m²).</span></div>
+
+      <h3><span class="lang-en">3.2 Energy &amp; 3.3 Raw PR</span><span class="lang-it">3.2 Energia e 3.3 PR Raw</span></h3>
+      <pre><code><span class="lang-en">inverter_energy = power_kW × 0.25          (15 min)
+Expected energy = 12,625 kWp × Σ I</span><span class="lang-it">energia_inverter = potenza_kW × 0,25       (15 min)
+Energia attesa  = 12.625 kWp × Σ I</span>
+
+<span class="lang-en">Raw PR (%)  =  Actual energy / (12,625 × Σ I) × 100</span><span class="lang-it">PR Raw (%)  =  Energia effettiva / (12.625 × Σ I) × 100</span></code></pre>
+
+      <h3><span class="lang-en">3.4 Recoverable losses (per inverter, per interval — mutually exclusive)</span><span class="lang-it">3.4 Perdite recuperabili (per inverter, per intervallo — mutuamente esclusive)</span></h3>
+      <table>
+        <tr><th><span class="lang-en">Type</span><span class="lang-it">Tipo</span></th><th><span class="lang-en">When</span><span class="lang-it">Quando</span></th><th><span class="lang-en">Amount (×0.25)</span><span class="lang-it">Ammontare (×0,25)</span></th></tr>
+        <tr><td><span class="lang-en">Downtime</span><span class="lang-it">Fermo</span></td><td><span class="lang-en">inverter &lt; 1 kW, sun up</span><span class="lang-it">inverter &lt; 1 kW, c'è sole</span></td><td><span class="lang-en">working neighbours' avg, else (POA/1000)×DC×target</span><span class="lang-it">media vicini attivi, altrimenti (POA/1000)×DC×target</span></td></tr>
+        <tr><td><span class="lang-en">Curtailment</span><span class="lang-it">Limitazione</span></td><td><span class="lang-en">inverter ≥ 1 kW &amp; limit &lt; 0.875</span><span class="lang-it">inverter ≥ 1 kW e limite &lt; 0,875</span></td><td>max(0, min(exp,cap) − cap×limit)</td></tr>
+        <tr><td><span class="lang-en">Ramp/recovery</span><span class="lang-it">Rampa/recupero</span></td><td><span class="lang-en">producing, non-curtailed, next to a full outage</span><span class="lang-it">produce, non limitato, accanto a un fermo totale</span></td><td>max(0, expected − actual)</td></tr>
+      </table>
+      <div class="callout warn"><span class="lang-en"><b>No double-counting:</b> curtailment is booked only while the inverter actually produces. During a full outage the grid signal also reads ~0, but that energy is already the <i>downtime</i> loss — counting it twice pushed Compensated PR to an impossible 108% on 12 Jun 2026 before the fix.</span><span class="lang-it"><b>Niente doppio conteggio:</b> la limitazione si registra solo mentre l'inverter produce davvero. Durante un fermo totale anche il segnale di rete legge ~0, ma quell'energia è già la perdita di <i>fermo</i> — conteggiarla due volte portò il PR Compensato a un impossibile 108% il 12 giu 2026 prima della correzione.</span></div>
+
+      <h3><span class="lang-en">3.5 Compensated PR · 3.6 Per-inverter · 3.7 Availability · 3.8 Target</span><span class="lang-it">3.5 PR Compensato · 3.6 Per inverter · 3.7 Disponibilità · 3.8 Target</span></h3>
+      <pre><code><span class="lang-en">Compensated PR = (Actual energy + Σ losses) / (12,625 × Σ I) × 100
+Per-inverter PR = (inv_energy + inv_loss) / (DC_inv × Σ I) × 100
+Availability    = E / (E + L1 + L2 + L3) × 100
+Target(month,year) = PVSyst_base(month) × (1 − 0.4%)^n     (n = contract years since Feb 2025)</span><span class="lang-it">PR Compensato  = (Energia eff. + Σ perdite) / (12.625 × Σ I) × 100
+PR per inverter = (energia_inv + perdita_inv) / (DC_inv × Σ I) × 100
+Disponibilità   = E / (E + L1 + L2 + L3) × 100
+Target(mese,anno) = base_PVSyst(mese) × (1 − 0,4%)^n     (n = anni contrattuali da feb 2025)</span></code></pre>
+      <div class="callout warn"><span class="lang-en"><b>Sanity rule:</b> a correct Compensated PR cannot meaningfully exceed 100% — you cannot recover more than the sunlight could support.</span><span class="lang-it"><b>Regola di controllo:</b> un PR Compensato corretto non può superare in modo significativo il 100% — non si può recuperare più di quanto la luce potesse sostenere.</span></div>
+    </section>
+
+    <!-- ================= 4. WALKTHROUGH ================= -->
+    <section id="walkthrough">
+      <h2><span class="lang-en">4. Step-by-Step Walkthrough</span><span class="lang-it">4. Esempio passo passo</span></h2>
+      <h3><span class="lang-en">One interval (15:15, June 2026)</span><span class="lang-it">Un intervallo (15:15, giugno 2026)</span></h3>
+      <pre><code>POA1 = 990 W/m² → 0.24750 kWh/m²
+POA3 = 968 W/m² → 0.24200 kWh/m²
+<span class="lang-en">deviation</span><span class="lang-it">scostamento</span> = 2.2% &lt; 10% → <span class="lang-en">use average</span><span class="lang-it">usa media</span>
+Column I = 0.24475   (×4000 = 979 ≥ 50 ✓)
+<span class="lang-en">Target June 2026 (n=1)</span><span class="lang-it">Target giugno 2026 (n=1)</span> = 83.3% × 0.996 = 82.97%
+<span class="lang-en">Full-outage downtime, one 343.75 kWp inverter:</span><span class="lang-it">Fermo totale, un inverter da 343,75 kWp:</span>
+  (979/1000) × 343.75 × 0.8297 × 0.25 ≈ 69.8 kWh   ×36 ≈ 2,500 kWh</code></pre>
+      <h3><span class="lang-en">A full day: normal vs. outage</span><span class="lang-it">Un giorno intero: normale vs. con fermo</span></h3>
+      <table>
+        <tr><th><span class="lang-en">Day</span><span class="lang-it">Giorno</span></th><th>Σ I</th><th><span class="lang-en">Energy</span><span class="lang-it">Energia</span></th><th>Raw PR</th><th>Comp. PR</th><th><span class="lang-en">Avail.</span><span class="lang-it">Disp.</span></th></tr>
+        <tr><td>20 Jun 2026 <span class="lang-en">(normal)</span><span class="lang-it">(normale)</span></td><td>10.13</td><td>104,400</td><td>83.0%</td><td>83.0%</td><td>100%</td></tr>
+        <tr><td>12 Jun 2026 <span class="lang-en">(~5h outage)</span><span class="lang-it">(~5h fermo)</span></td><td>9.39</td><td>46,900</td><td>39.6%</td><td><b>81.7%</b></td><td>36%</td></tr>
+      </table>
+      <p><span class="lang-en">On 12 June the raw PR collapses because of the shutdown, but compensation recovers ≈49,900 kWh of downtime loss, revealing the equipment was healthy (81.7%).</span><span class="lang-it">Il 12 giugno il PR Raw crolla per il fermo, ma la compensazione recupera ≈49.900 kWh di perdita per fermo, mostrando che l'apparecchiatura era sana (81,7%).</span></p>
+    </section>
+
+    <!-- ================= INTERACTIVE TOOLS ================= -->
+    <section id="tools">
+      <h2>★ <span class="lang-en">Interactive Tools</span><span class="lang-it">Strumenti interattivi</span></h2>
+
+      <div class="tool">
+        <h4><span class="lang-en">Reference irradiance (Column I)</span><span class="lang-it">Irraggiamento di riferimento (Colonna I)</span></h4>
+        <div class="grid">
+          <div class="fld"><label>POA1 TX1 (W/m²)</label><input id="poa1" type="number" value="990" oninput="calcRef()"></div>
+          <div class="fld"><label>POA3 TX3 (W/m²)</label><input id="poa3" type="number" value="968" oninput="calcRef()"></div>
+          <div class="fld"><label><span class="lang-en">Method</span><span class="lang-it">Metodo</span></label>
+            <select id="method" onchange="calcRef()">
+              <option value="condmax">Conditional MAX</option>
+              <option value="average">Average / Media</option>
+            </select></div>
+          <div class="fld"><label><span class="lang-en">Tolerance %</span><span class="lang-it">Tolleranza %</span></label><input id="tol" type="number" value="10" oninput="calcRef()"></div>
+        </div>
+        <div class="result">
+          <div class="metric"><div class="k"><span class="lang-en">Chosen sensor</span><span class="lang-it">Sensore scelto</span></div><div class="v" id="ref-src" style="font-size:16px">—</div></div>
+          <div class="metric"><div class="k">Column I (kWh/m²)</div><div class="v" id="ref-i">—</div></div>
+          <div class="metric"><div class="k"><span class="lang-en">Gate (≥50 W/m²)</span><span class="lang-it">Soglia (≥50 W/m²)</span></div><div class="v" id="ref-gate" style="font-size:16px">—</div></div>
+        </div>
+      </div>
+
+      <div class="tool">
+        <h4><span class="lang-en">Raw &amp; Compensated PR</span><span class="lang-it">PR Raw e Compensato</span></h4>
+        <div class="grid">
+          <div class="fld"><label><span class="lang-en">Actual energy (kWh)</span><span class="lang-it">Energia effettiva (kWh)</span></label><input id="energy" type="number" value="46900" oninput="calcPR()"></div>
+          <div class="fld"><label><span class="lang-en">Σ I (kWh/m²)</span><span class="lang-it">Σ I (kWh/m²)</span></label><input id="sumI" type="number" step="0.01" value="9.39" oninput="calcPR()"></div>
+          <div class="fld"><label><span class="lang-en">Recoverable losses (kWh)</span><span class="lang-it">Perdite recuperabili (kWh)</span></label><input id="losses" type="number" value="49900" oninput="calcPR()"></div>
+          <div class="fld"><label><span class="lang-en">Nameplate (kWp)</span><span class="lang-it">Nominale (kWp)</span></label><input id="nom" type="number" value="12625" oninput="calcPR()"></div>
+        </div>
+        <div class="result">
+          <div class="metric"><div class="k"><span class="lang-en">Expected energy</span><span class="lang-it">Energia attesa</span></div><div class="v" id="pr-exp" style="font-size:18px">—</div></div>
+          <div class="metric"><div class="k">Raw PR</div><div class="v" id="pr-raw">—</div></div>
+          <div class="metric"><div class="k"><span class="lang-en">Compensated PR</span><span class="lang-it">PR Compensato</span></div><div class="v" id="pr-comp">—</div></div>
+        </div>
+        <p id="pr-note" style="color:var(--muted);font-size:13px;margin:10px 0 0"></p>
+      </div>
+
+      <div class="tool">
+        <h4><span class="lang-en">Degraded target calculator</span><span class="lang-it">Calcolo target degradato</span></h4>
+        <div class="grid">
+          <div class="fld"><label><span class="lang-en">Month</span><span class="lang-it">Mese</span></label>
+            <select id="tmonth" onchange="calcTarget()">
+              <option value="1">Jan/Gen</option><option value="2">Feb</option><option value="3">Mar</option>
+              <option value="4">Apr</option><option value="5">May/Mag</option><option value="6" selected>Jun/Giu</option>
+              <option value="7">Jul/Lug</option><option value="8">Aug/Ago</option><option value="9">Sep/Set</option>
+              <option value="10">Oct/Ott</option><option value="11">Nov</option><option value="12">Dec/Dic</option>
+            </select></div>
+          <div class="fld"><label><span class="lang-en">Calendar year</span><span class="lang-it">Anno solare</span></label><input id="tyear" type="number" value="2026" oninput="calcTarget()"></div>
+        </div>
+        <div class="result">
+          <div class="metric"><div class="k"><span class="lang-en">Base PVSyst</span><span class="lang-it">Base PVSyst</span></div><div class="v" id="t-base" style="font-size:18px">—</div></div>
+          <div class="metric"><div class="k"><span class="lang-en">Contract year (n)</span><span class="lang-it">Anno contratto (n)</span></div><div class="v" id="t-n" style="font-size:18px">—</div></div>
+          <div class="metric"><div class="k"><span class="lang-en">Degraded target</span><span class="lang-it">Target degradato</span></div><div class="v" id="t-out">—</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 5. FAQ ================= -->
+    <section id="faq">
+      <h2><span class="lang-en">5. Frequently Asked Questions</span><span class="lang-it">5. Domande frequenti</span></h2>
+      <div id="faqbox"></div>
+    </section>
+
+    <!-- ================= 6. GLOSSARY ================= -->
+    <section id="glossary">
+      <h2><span class="lang-en">6. Glossary</span><span class="lang-it">6. Glossario</span></h2>
+      <table>
+        <tr><th><span class="lang-en">Term</span><span class="lang-it">Termine</span></th><th><span class="lang-en">Definition</span><span class="lang-it">Definizione</span></th></tr>
+        <tr><td>PR</td><td><span class="lang-en">Actual ÷ ideal energy for the sunlight, as %.</span><span class="lang-it">Energia effettiva ÷ ideale per la luce, in %.</span></td></tr>
+        <tr><td>POA</td><td><span class="lang-en">Plane Of Array — sunlight on the panels' plane.</span><span class="lang-it">Plane Of Array — luce sul piano dei pannelli.</span></td></tr>
+        <tr><td>kWp</td><td><span class="lang-en">Rated power under standard sunlight (1000 W/m²).</span><span class="lang-it">Potenza nominale sotto luce standard (1000 W/m²).</span></td></tr>
+        <tr><td>SCADA / VCOM</td><td><span class="lang-en">On-site control system / independent monitor.</span><span class="lang-it">Sistema di controllo in campo / monitor indipendente.</span></td></tr>
+        <tr><td><span class="lang-en">Curtailment</span><span class="lang-it">Limitazione</span></td><td><span class="lang-en">Grid-ordered output reduction.</span><span class="lang-it">Riduzione della produzione ordinata dalla rete.</span></td></tr>
+        <tr><td>Σ I</td><td><span class="lang-en">Daily gated reference irradiance sum (kWh/m²).</span><span class="lang-it">Somma giornaliera irraggiamento di riferimento (kWh/m²).</span></td></tr>
+      </table>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <span class="lang-en">Methodology implemented in <code>PR_Calculator_GUI_v11.py</code> for the Mazara 01 plant · Generated 2026-07-10.</span>
+  <span class="lang-it">Metodologia implementata in <code>PR_Calculator_GUI_v11.py</code> per l'impianto Mazara 01 · Generato il 2026-07-10.</span>
+</footer>
+
+<script>
+  const PVSYST = {1:0.904,2:0.896,3:0.897,4:0.868,5:0.832,6:0.833,7:0.820,8:0.828,9:0.852,10:0.876,11:0.894,12:0.900};
+  const FAQ = [
+    {q_en:"Raw vs SCADA vs VCOM vs Compensated PR?", q_it:"Raw vs SCADA vs VCOM vs Compensato?",
+     a_en:"Raw = actual-vs-ideal, no allowances. SCADA/VCOM = figures from the control system and the independent platform (cross-checks). Compensated adds back outage/curtailment losses — the guarantee view.",
+     a_it:"Raw = reale-vs-ideale, senza correzioni. SCADA/VCOM = valori dal sistema di controllo e dalla piattaforma indipendente (controlli incrociati). Compensato riaggiunge le perdite per fermo/limitazione — la vista della garanzia."},
+    {q_en:"Why ignore energy below 50 W/m²?", q_it:"Perché ignorare l'energia sotto 50 W/m²?",
+     a_en:"At dawn/dusk sunlight is so weak that sensor noise makes PR meaningless and can divide by near-zero. The gate removes those unreliable intervals.",
+     a_it:"All'alba/tramonto la luce è così debole che il rumore rende il PR privo di senso e si rischia di dividere per quasi zero. La soglia rimuove questi intervalli inaffidabili."},
+    {q_en:"Why trust the higher pyranometer?", q_it:"Perché fidarsi del piranometro più alto?",
+     a_en:"A soiled/shaded sensor reads too low; averaging it in would understate sunlight and inflate PR. The higher (clean) reading is conservative.",
+     a_it:"Un sensore sporco/in ombra legge troppo basso; includerlo sottostimerebbe la luce e gonfierebbe il PR. La lettura più alta (pulita) è prudente."},
+    {q_en:"Can Compensated PR exceed 100%?", q_it:"Il PR Compensato può superare il 100%?",
+     a_en:"No, not legitimately. Above 100% always means a data problem or a double-counted loss (e.g. curtailment during a full outage), treated as a bug.",
+     a_it:"No, non legittimamente. Sopra il 100% indica sempre un problema di dati o una perdita doppia (es. limitazione durante un fermo totale), trattata come errore."},
+    {q_en:"Why does the target drop yearly?", q_it:"Perché il target scende ogni anno?",
+     a_en:"Panels degrade with age, so the contract lowers the guaranteed PR by 0.4%/yr. Year 1 (Feb 2025–Jan 2026) uses full values; each February steps down.",
+     a_it:"I pannelli si degradano con l'età, quindi il contratto abbassa il PR garantito dello 0,4%/anno. L'Anno 1 (feb 2025–gen 2026) usa i valori pieni; ogni febbraio scende."},
+    {q_en:"Where do the Mother SCADA/VCOM numbers come from?", q_it:"Da dove vengono i numeri SCADA/VCOM del Madre?",
+     a_en:"When KPI_Report_Daily.xls (SCADA) and Performance_ratio_vcom.csv (VCOM) are present, their daily PR values are written into the PR SCADA / PR VCOM columns of the monthly summary.",
+     a_it:"Quando KPI_Report_Daily.xls (SCADA) e Performance_ratio_vcom.csv (VCOM) sono presenti, i loro PR giornalieri vengono scritti nelle colonne PR SCADA / PR VCOM del riepilogo mensile."}
+  ];
+
+  function setLang(l){
+    document.body.className = 'lang-'+l;
+    document.getElementById('btn-en').classList.toggle('active', l==='en');
+    document.getElementById('btn-it').classList.toggle('active', l==='it');
+    document.documentElement.lang = l;
+    try{ localStorage.setItem('pr_lang', l);}catch(e){}
+    renderFAQ(l);
+  }
+  function renderFAQ(l){
+    const box=document.getElementById('faqbox');
+    box.innerHTML = FAQ.map((f,i)=>`
+      <div class="callout"><b>${l==='it'?'D':'Q'}${i+1}. ${l==='it'?f.q_it:f.q_en}</b><br>${l==='it'?f.a_it:f.a_en}</div>`).join('');
+  }
+
+  function num(id){ const v=parseFloat(document.getElementById(id).value); return isNaN(v)?0:v; }
+  const lang=()=>document.body.classList.contains('lang-it')?'it':'en';
+
+  function calcRef(){
+    const p1=num('poa1'), p3=num('poa3'), method=document.getElementById('method').value, tol=num('tol')/100;
+    const k1=p1/4000, k3=p3/4000, avg=(k1+k3)/2;
+    let ref, src;
+    if(k1===0&&k3===0){ref=0; src='—';}
+    else if(k1===0||k3===0){ref=Math.max(k1,k3); src=(k1>k3?'TX1':'TX3')+(lang()==='it'?' (unico attivo)':' (only active)');}
+    else if(method==='average'){ref=avg; src=lang()==='it'?'Media':'Average';}
+    else if(avg>0 && Math.abs(k1-k3)/avg>tol){ref=Math.max(k1,k3); src=(k1>k3?'TX1':'TX3')+(lang()==='it'?' (più alto)':' (higher)');}
+    else{ref=avg; src=lang()==='it'?'Media':'Average';}
+    const gatePass = ref*4000>=50;
+    document.getElementById('ref-src').textContent=src;
+    document.getElementById('ref-i').textContent= (gatePass?ref:0).toFixed(5);
+    const g=document.getElementById('ref-gate');
+    g.textContent = gatePass ? (lang()==='it'?'PASSA ✓':'PASS ✓') : (lang()==='it'?'SCARTATO ✗':'DISCARDED ✗');
+    g.style.color = gatePass ? 'var(--accent)' : 'var(--warn)';
+  }
+
+  function calcPR(){
+    const e=num('energy'), sI=num('sumI'), loss=num('losses'), nom=num('nom');
+    const den=nom*sI;
+    const exp=den, raw=den>0?e/den*100:0, comp=den>0?(e+loss)/den*100:0;
+    document.getElementById('pr-exp').textContent = exp.toLocaleString(undefined,{maximumFractionDigits:0})+' kWh';
+    document.getElementById('pr-raw').textContent = raw.toFixed(2)+'%';
+    const c=document.getElementById('pr-comp');
+    c.textContent = comp.toFixed(2)+'%';
+    c.classList.toggle('warnval', comp>100.5);
+    const note=document.getElementById('pr-note');
+    if(comp>100.5){ note.innerHTML = lang()==='it'
+        ? '⚠️ PR Compensato &gt; 100%: impossibile — probabile doppio conteggio delle perdite o dato errato.'
+        : '⚠️ Compensated PR &gt; 100%: impossible — likely a double-counted loss or bad data.'; }
+    else note.textContent='';
+  }
+
+  function calcTarget(){
+    const m=parseInt(document.getElementById('tmonth').value), y=num('tyear');
+    const base=PVSYST[m];
+    const anchor = m>=2 ? y : y-1;
+    const n=Math.max(0, anchor-2025);
+    const factor=Math.pow(1-0.004,n);
+    document.getElementById('t-base').textContent=(base*100).toFixed(1)+'%';
+    document.getElementById('t-n').textContent=n+' ('+(lang()==='it'?'anno ':'year ')+(n+1)+')';
+    document.getElementById('t-out').textContent=(base*factor*100).toFixed(3)+'%';
+  }
+
+  // init
+  (function(){
+    let l='en'; try{ l=localStorage.getItem('pr_lang')||'en'; }catch(e){}
+    setLang(l); calcRef(); calcPR(); calcTarget();
+  })();
+</script>
+</body>
+</html>
