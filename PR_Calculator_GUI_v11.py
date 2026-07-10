@@ -204,6 +204,20 @@ class PRCalculatorGUI:
         self.style.configure("Action.TButton", background=self.accent_color, foreground="#ffffff", font=("Segoe UI Semibold", 11, "bold"), padding=[20, 10])
         self.style.map("Action.TButton", background=[("active", self.accent_hover)])
         
+        # Segmented toggle styling for the POA reference method (themed pill buttons).
+        # Unselected: white surface with accent text and a light border. Selected: filled
+        # accent background with white text so the active choice is obvious at a glance.
+        self.style.configure("POA.Toolbutton", background="#ffffff", foreground=self.accent_color,
+                             bordercolor=self.border_color, lightcolor=self.border_color, darkcolor=self.border_color,
+                             borderwidth=1, relief="solid", font=("Segoe UI Semibold", 9), padding=[16, 7], anchor="center")
+        self.style.map("POA.Toolbutton",
+                       background=[("selected", self.accent_color), ("active", "#e8f0fe"), ("!selected", "#ffffff")],
+                       foreground=[("selected", "#ffffff"), ("active", self.accent_color)],
+                       bordercolor=[("selected", self.accent_color), ("active", self.accent_color)],
+                       lightcolor=[("selected", self.accent_color)],
+                       darkcolor=[("selected", self.accent_color)],
+                       relief=[("selected", "solid")])
+        
         # Checkbutton styling
         self.style.configure("TCheckbutton", background=self.card_bg, foreground=self.text_color, font=("Segoe UI", 10))
         self.style.map("TCheckbutton", background=[("active", self.card_bg)], foreground=[("active", self.text_color)])
@@ -243,18 +257,22 @@ class PRCalculatorGUI:
         today = datetime.date.today()
         current_date_str = today.strftime("%Y-%m-%d")
         current_month = today.month
-        pvsyst_defaults = {
+        # Canonical monthly PVSyst baseline targets (Year-1 undegraded). Kept as an instance
+        # attribute so the reference table and its degradation-adjusted column can reuse them.
+        self.pvsyst_monthly = {
             1: 0.904, 2: 0.896, 3: 0.897, 4: 0.868, 5: 0.832, 6: 0.833,
             7: 0.820, 8: 0.828, 9: 0.852, 10: 0.876, 11: 0.894, 12: 0.900
         }
+        pvsyst_defaults = self.pvsyst_monthly
         default_pr = f"{pvsyst_defaults.get(current_month, 0.868):.3f}".replace(".", ",")
         
         self.date_var = tk.StringVar(value=current_date_str)
         self.pvsyst_pr_var = tk.StringVar(value=default_pr)
         self.threshold_var = tk.StringVar(value="50")
         self.diff_threshold_var = tk.StringVar(value="10")
-        # POA reference method for PR: "condmax" (Conditional MAX) or "average" (two-sensor mean)
-        self.poa_method_var = tk.StringVar(value="condmax")
+        # POA reference method for PR: "condmax" (Conditional MAX) or "average" (two-sensor mean).
+        # Default is Media (Average) — the IEC-standard two-pyranometer arithmetic mean.
+        self.poa_method_var = tk.StringVar(value="average")
         self.reprocess_all_var = tk.BooleanVar(value=False)
         
         # Register a trace on date_var to auto-update the PVSyst PR default value
@@ -411,15 +429,15 @@ class PRCalculatorGUI:
                  fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
         toggle_row = tk.Frame(poa_method_frame, bg="#ffffff")
         toggle_row.pack(anchor="w", pady=(2, 0))
-        ttk.Radiobutton(toggle_row, text="  Conditional MAX  ", value="condmax",
-                        variable=self.poa_method_var, style="Toolbutton",
+        ttk.Radiobutton(toggle_row, text="Conditional MAX", value="condmax",
+                        variable=self.poa_method_var, style="POA.Toolbutton",
                         command=self._on_poa_method_change).pack(side="left")
-        ttk.Radiobutton(toggle_row, text="  Media (Average)  ", value="average",
-                        variable=self.poa_method_var, style="Toolbutton",
+        ttk.Radiobutton(toggle_row, text="Media (Average)", value="average",
+                        variable=self.poa_method_var, style="POA.Toolbutton",
                         command=self._on_poa_method_change).pack(side="left", padx=(6, 0))
         self.lbl_poa_method_hint = tk.Label(
             poa_method_frame, bg="#ffffff", fg="#5f6368", font=("Segoe UI", 8),
-            text="Conditional MAX: usa il sensore maggiore se i due piranometri divergono oltre la tolleranza (più conservativo).")
+            text="Media: media aritmetica dei due piranometri (standard IEC). La tolleranza diff. non è usata.")
         self.lbl_poa_method_hint.pack(anchor="w", pady=(2, 0))
 
         # Force reprocess checkbox (Batch mode)
@@ -467,31 +485,29 @@ class PRCalculatorGUI:
         pvsyst_table_frame = tk.Frame(pvsyst_table_border, bg="#ffffff")
         pvsyst_table_frame.pack(fill="both", expand=True, padx=1, pady=1)
         
-        cols_pvsyst = ("Mese", "Target PR", "Target PR (%)")
+        cols_pvsyst = ("Mese", "Target PR", "Target PR (%)", "Target Corretto")
         self.pvsyst_tree = ttk.Treeview(pvsyst_table_frame, columns=cols_pvsyst, show="headings", height=10)
         self.pvsyst_tree.pack(fill="both", expand=True)
         
+        col_widths = {"Mese": 95, "Target PR": 90, "Target PR (%)": 95, "Target Corretto": 110}
         for c in cols_pvsyst:
             self.pvsyst_tree.heading(c, text=c)
             align = "w" if c == "Mese" else "center"
-            self.pvsyst_tree.column(c, width=120, anchor=align)
+            self.pvsyst_tree.column(c, width=col_widths.get(c, 100), anchor=align)
             
-        months_data = [
-            ("Gennaio", "0,904", "90,4%"),
-            ("Febbraio", "0,896", "89,6%"),
-            ("Marzo", "0,897", "89,7%"),
-            ("Aprile", "0,868", "86,8%"),
-            ("Maggio", "0,832", "83,2%"),
-            ("Giugno", "0,833", "83,3%"),
-            ("Luglio", "0,820", "82,0%"),
-            ("Agosto", "0,828", "82,8%"),
-            ("Settembre", "0,852", "85,2%"),
-            ("Ottobre", "0,876", "87,6%"),
-            ("Novembre", "0,894", "89,4%"),
-            ("Dicembre", "0,900", "90,0%")
-        ]
-        for idx, (m, dec, pct) in enumerate(months_data, start=1):
-            self.pvsyst_tree.insert("", "end", iid=f"m{idx}", values=(m, dec, pct))
+        months_names = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+                        "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+        for idx, name in enumerate(months_names, start=1):
+            base = self.pvsyst_monthly[idx]
+            dec = f"{base:.3f}".replace(".", ",")
+            pct = f"{base * 100:.1f}%".replace(".", ",")
+            self.pvsyst_tree.insert("", "end", iid=f"m{idx}", values=(name, dec, pct, "--"))
+        # Populate the degradation-adjusted column for the currently selected year
+        try:
+            _y = int(self.date_var.get().strip().split("-")[0])
+        except Exception:
+            _y = datetime.date.today().year
+        self._refresh_pvsyst_adjusted(_y)
         
         # Dummy parent for keeping the bottom results tabs/notebook and tables without packing them
         dummy_bottom = tk.Frame(self.root)
@@ -708,20 +724,7 @@ class PRCalculatorGUI:
             parts = date_str.split("-")
             if len(parts) >= 2:
                 month_val = int(parts[1])
-                pvsyst_defaults = {
-                    1: 0.904,   # January
-                    2: 0.896,   # February
-                    3: 0.897,   # March
-                    4: 0.868,   # April
-                    5: 0.832,   # May
-                    6: 0.833,   # June
-                    7: 0.820,   # July
-                    8: 0.828,   # August
-                    9: 0.852,   # September
-                    10: 0.876,  # October
-                    11: 0.894,  # November
-                    12: 0.900   # December
-                }
+                pvsyst_defaults = self.pvsyst_monthly
                 if month_val in pvsyst_defaults:
                     self.pvsyst_pr_var.set(f"{pvsyst_defaults[month_val]:.3f}".replace(".", ","))
                     # Highlight matching row in the PVSyst reference treeview
@@ -731,6 +734,12 @@ class PRCalculatorGUI:
                         self.pvsyst_tree.see(f"m{month_val}")
                     except Exception:
                         pass
+                # Refresh the degradation-adjusted target column for the selected year
+                try:
+                    year_val = int(parts[0]) if parts[0].isdigit() and len(parts[0]) == 4 else None
+                    self._refresh_pvsyst_adjusted(year_val)
+                except Exception:
+                    pass
         except Exception:
             pass
             
@@ -1170,7 +1179,23 @@ class PRCalculatorGUI:
         
         # Format date components
         date_replaced = date_str.replace("-", "_") # e.g. 2026_04_26
-        
+
+        # Apply the contractual PR-target degradation to the PVSyst target for THIS month.
+        # Per Allegato 9.1 the guaranteed PR degrades 0.4%/year (compounding annually) from
+        # the Feb-2025 plant start. The year/month are taken from date_str (which the batch
+        # derives from the /YYYY MM/DD folder layout). Year 1 (Feb 2025 - Jan 2026) is
+        # undegraded (n=0); the incoming pvsyst_pr is treated as the Year-1 monthly baseline.
+        try:
+            _dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            deg_n, deg_factor = self._pr_degradation_factor(_dt.year, _dt.month)
+            _pvsyst_base = float(pvsyst_pr)
+            pvsyst_pr = _pvsyst_base * deg_factor
+            if deg_n > 0:
+                print(f"[{date_str}] Target PVSyst degradato: {_pvsyst_base*100:.3f}% "
+                      f"x (1-0,4%)^{deg_n} = {pvsyst_pr*100:.3f}% (anno contrattuale {deg_n+1})")
+        except Exception as _deg_err:
+            print(f"[{date_str}] DEBUG: degradazione target PVSyst non applicata: {_deg_err}")
+
         # Find required files
         reg_patterns = [f"Regolazione_della_potenza_attiva_{date_replaced}.xlsx", f"Regolazione_potenza_attiva_{date_replaced}.xlsx", "*potenza_attiva*.xlsx"]
         satac_patterns = ["SATAC_Meter_15Min.xlsx", "SATAC_Meter*.xlsx", "*SATAC*.xlsx"]
@@ -1817,6 +1842,64 @@ class PRCalculatorGUI:
             
         return df_result, calc_results
 
+    def _pr_degradation_factor(self, year, month, start_year=2025, start_month=2, rate=0.004):
+        """Contractual PR-target degradation (Allegato 9.1): the guaranteed PR degrades
+        `rate` (0.4%) per year, compounding annually, from the plant start (Feb 2025).
+        Contract years run start_month..start_month-1 (Feb..Jan); Year 1 is undegraded
+        (n=0). Returns (n, factor) with factor = (1-rate)**n."""
+        anchor_year = year if month >= start_month else year - 1
+        n = max(0, anchor_year - start_year)
+        return n, (1.0 - rate) ** n
+
+    def _read_scada_daily_pr(self, month_folder, year, month):
+        """Daily SCADA PR (%) from 'KPI_Report_Daily.xls' in month_folder, if present.
+        The KPI export lists Month, Date and the daily PR%. Returns {day:int -> pr:float}."""
+        path = os.path.join(month_folder, "KPI_Report_Daily.xls")
+        if not os.path.exists(path):
+            return {}
+        out = {}
+        try:
+            import pandas as pd
+            df = pd.read_excel(path, header=None)
+            for _, row in df.iterrows():
+                try:
+                    ts = pd.to_datetime(row[2])
+                    pr = float(str(row[3]).replace(",", "."))
+                except Exception:
+                    continue
+                if ts.year == year and ts.month == month:
+                    out[int(ts.day)] = round(pr, 3)
+        except Exception as e:
+            print(f"DEBUG: lettura SCADA 'KPI_Report_Daily.xls' fallita: {e}")
+        return out
+
+    def _read_vcom_daily_pr(self, month_folder):
+        """Daily VCOM PR (%) from 'Performance_ratio_vcom.csv' in month_folder, if present.
+        The file is UTF-16, tab-separated, Italian decimals; the 'Data' column holds the
+        day-of-month and the 3rd column the PR%. Returns {day:int -> pr:float}."""
+        import re
+        path = os.path.join(month_folder, "Performance_ratio_vcom.csv")
+        if not os.path.exists(path):
+            return {}
+        out = {}
+        try:
+            raw = open(path, "rb").read()
+            try:
+                txt = raw.decode("utf-16")
+            except Exception:
+                txt = raw.decode("utf-8-sig", errors="replace")
+            for line in txt.splitlines():
+                parts = [c.strip().strip('"') for c in line.split("\t")]
+                if len(parts) < 3 or not re.fullmatch(r"\d{1,2}", parts[0]):
+                    continue
+                try:
+                    out[int(parts[0])] = round(float(parts[2].replace(",", ".")), 3)
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"DEBUG: lettura VCOM 'Performance_ratio_vcom.csv' fallita: {e}")
+        return out
+
     def sync_mother_file(self, calcolo_folder, year_val, month_val):
         import calendar
         import openpyxl
@@ -2061,6 +2144,29 @@ class PRCalculatorGUI:
                     except Exception:
                         pass
                 
+            # --- Optional external vendor PR sources ---------------------------------
+            # If the month folder (the '/YYYY MM' folder that contains 'PR CALCOLO FILE')
+            # holds the SCADA KPI export and/or the VCOM export, their per-day PR values
+            # REPLACE the formula-linked PR SCADA / PR VCOM columns in the Mother file.
+            month_folder = os.path.dirname(os.path.abspath(calcolo_folder))
+            scada_pr = self._read_scada_daily_pr(month_folder, year_val, month_val)
+            vcom_pr = self._read_vcom_daily_pr(month_folder)
+            scada_col = vcom_col = None
+            for col in range(2, 65):
+                hv = str(ws_mother.Cells(4, col).Value or "").strip().lower()
+                if "pr scada" in hv:
+                    scada_col = col
+                elif "pr vcom" in hv:
+                    vcom_col = col
+            # When a vendor file is present, manage that column as direct values: drop its
+            # child-link formula so the value we write is not overwritten on the next sync.
+            if scada_pr and scada_col:
+                header_mapping.pop(scada_col, None)
+                print(f"PR SCADA da 'KPI_Report_Daily.xls': {len(scada_pr)} giorni -> colonna Madre {scada_col}")
+            if vcom_pr and vcom_col:
+                header_mapping.pop(vcom_col, None)
+                print(f"PR VCOM da 'Performance_ratio_vcom.csv': {len(vcom_pr)} giorni -> colonna Madre {vcom_col}")
+
             daily_dir = os.path.abspath(calcolo_folder).replace('/', '\\')
             
             sync_count = 0
@@ -2087,6 +2193,12 @@ class PRCalculatorGUI:
                         for col, f_val in formulas_to_write.items():
                             ws_mother.Cells(r, col).Formula = f_val
                         sync_count += 1
+
+                    # Vendor PR overrides (written as values, not formulas) when present.
+                    if scada_pr and scada_col:
+                        ws_mother.Cells(r, scada_col).Value = scada_pr.get(day_num)
+                    if vcom_pr and vcom_col:
+                        ws_mother.Cells(r, vcom_col).Value = vcom_pr.get(day_num)
                 else:
                     # Daily file not yet processed — clear any stale data/formulas left
                     # over from a previous month's template so the row stays blank.
