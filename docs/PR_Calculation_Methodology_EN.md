@@ -121,17 +121,22 @@ irradiance_kWh/m²  =  irradiance_W/m²  ÷  4000
 - **÷ 4** converts a full hour to a quarter-hour (15 minutes).
 - Combined: **÷ 4000**.
 
-There are **two** pyranometers (TX1 and TX3). For each interval we must pick **one** reference value from the two. The rule (the "**Conditional MAX**" method, the default) is:
+There are **two** pyranometers (TX1 and TX3). For each interval we must pick **one** reference value from the two. The default rule is the "**Average**" method — the plain arithmetic mean of the two sensors (the IEC-standard approach):
 
 ```
 if both sensors read 0:          reference = 0
 else if exactly one reads 0:     reference = the working sensor
+else:                            reference = the average of the two
+```
+
+- An alternative "**Conditional MAX**" method is also selectable in the tool. It behaves like Average but, when the two sensors disagree by more than a tolerance (e.g. 10%), it trusts the **higher** sensor instead of the mean:
+
+```
 else if |POA1 − POA3| / average  > 10% (tolerance):   reference = the HIGHER sensor
 else:                            reference = the average of the two
 ```
 
-- **Why prefer the higher sensor when they disagree?** A pyranometer that is dirty or shaded reads **too low**. Averaging a faulty low reading would understate the sunlight and *inflate* PR. Trusting the higher (clean) sensor is the conservative choice.
-- An alternative "**Average**" method (plain mean of the two) is also selectable in the tool; the plant uses one method consistently.
+- **Why would one prefer the higher sensor when they disagree?** A pyranometer that is dirty or shaded reads **too low**. Averaging a faulty low reading would understate the sunlight and *inflate* PR. Trusting the higher (clean) sensor is the more conservative choice. The plant uses one method consistently.
 
 Finally, a **minimum-sunlight gate** is applied:
 
@@ -292,12 +297,11 @@ POA1 = 990 ÷ 4000 = 0.24750 kWh/m²
 POA3 = 968 ÷ 4000 = 0.24200 kWh/m²
 ```
 
-**2. Pick the reference (Conditional MAX):**
+**2. Pick the reference (Average — default):**
 ```
-average   = (0.24750 + 0.24200) / 2 = 0.24475
-deviation = |0.24750 − 0.24200| / 0.24475 = 2.2%   →  below the 10% tolerance
-reference (Column I) = average = 0.24475 kWh/m²
+reference (Column I) = average = (0.24750 + 0.24200) / 2 = 0.24475 kWh/m²
 ```
+(With Conditional MAX the result is identical here: deviation = |0.24750 − 0.24200| / 0.24475 = 2.2%, below the 10% tolerance, so the mean is used anyway.)
 Check the gate: 0.24475 × 4000 = 979 W/m² ≥ 50 → **kept**.
 
 **3. Degraded target for June 2026:**

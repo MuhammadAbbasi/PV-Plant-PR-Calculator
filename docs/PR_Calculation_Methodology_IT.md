@@ -121,17 +121,22 @@ irraggiamento_kWh/m²  =  irraggiamento_W/m²  ÷  4000
 - **÷ 4** converte un'ora intera in un quarto d'ora (15 minuti).
 - Combinato: **÷ 4000**.
 
-Ci sono **due** piranometri (TX1 e TX3). Per ogni intervallo dobbiamo scegliere **un** valore di riferimento tra i due. La regola (il metodo "**MAX Condizionale**", predefinito) è:
+Ci sono **due** piranometri (TX1 e TX3). Per ogni intervallo dobbiamo scegliere **un** valore di riferimento tra i due. La regola predefinita è il metodo "**Media**" — la media aritmetica semplice dei due sensori (approccio standard IEC):
 
 ```
 se entrambi i sensori leggono 0:            riferimento = 0
 altrimenti se uno solo legge 0:             riferimento = il sensore funzionante
+altrimenti:                                 riferimento = la media dei due
+```
+
+- Nello strumento è selezionabile anche un metodo "**MAX Condizionale**". Si comporta come la Media ma, quando i due sensori discordano oltre una tolleranza (es. 10%), usa il sensore **più alto** invece della media:
+
+```
 altrimenti se |POA1 − POA3| / media  > 10% (tolleranza):   riferimento = il sensore PIÙ ALTO
 altrimenti:                                 riferimento = la media dei due
 ```
 
-- **Perché preferire il sensore più alto quando discordano?** Un piranometro sporco o in ombra legge **troppo basso**. Fare la media con una lettura errata bassa sottostimerebbe la luce e *gonfierebbe* il PR. Fidarsi del sensore più alto (pulito) è la scelta prudente.
-- Nello strumento è selezionabile anche un metodo "**Media**" (media semplice dei due); l'impianto usa un metodo in modo coerente.
+- **Perché preferire il sensore più alto quando discordano?** Un piranometro sporco o in ombra legge **troppo basso**. Fare la media con una lettura errata bassa sottostimerebbe la luce e *gonfierebbe* il PR. Fidarsi del sensore più alto (pulito) è la scelta più prudente. L'impianto usa un metodo in modo coerente.
 
 Infine si applica una **soglia minima di sole**:
 

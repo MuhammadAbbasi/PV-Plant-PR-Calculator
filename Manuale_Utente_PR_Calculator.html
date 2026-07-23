@@ -467,7 +467,7 @@
                             <div class="badge" style="background: #2196f3;">6</div>
                             <div class="card-title">Tabella Riferimento Target PVSyst</div>
                         </div>
-                        <div class="card-desc">Mostra la tabella dei Target PR previsti da PVSyst per ciascun mese dell'anno. Quando viene inserita o rilevata una data, il mese corrispondente viene evidenziato ed il valore del Target PR viene copiato in automatico nel campo di calcolo.</div>
+                        <div class="card-desc">Mostra la tabella dei Target PR previsti da PVSyst per ciascun mese dell'anno, con una colonna aggiuntiva <strong>Target Corretto</strong> che riporta il valore degradato effettivamente usato per il mese/anno selezionato. Quando viene inserita o rilevata una data, il mese corrispondente viene evidenziato ed il valore del Target PR viene copiato in automatico nel campo di calcolo.</div>
                     </div>
 
                     <div class="callout-card" onclick="highlightBadge(7, this)">
@@ -549,7 +549,13 @@
                             <td style="color: var(--border-hover); font-weight: 600;">Irradiance Diff Tolerance (%)</td>
                             <td>Decimale / Intero (0% - 100%)</td>
                             <td>Tolleranza per la differenza percentuale di irraggiamento tra i sensori meteo (TX1 e TX3).</td>
-                            <td>Se la differenza relativa di irraggiamento tra TX1 e TX3 supera questa soglia (es. 10%), il sistema adotta il valore massimo (Conditional MAX) anziché la media semplice, mitigando l'impatto di coperture parziali o anomalie temporanee dei sensori.</td>
+                            <td>Usata <strong>solo</strong> con il metodo Conditional MAX: se la differenza relativa di irraggiamento tra TX1 e TX3 supera questa soglia (es. 10%), il sistema adotta il valore massimo anziché la media semplice, mitigando l'impatto di coperture parziali o anomalie temporanee dei sensori. Con il metodo Media questo campo è disattivato.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: var(--border-hover); font-weight: 600;">Riferimento POA per il PR</td>
+                            <td>Conditional MAX / Media (Average)</td>
+                            <td>Metodo di combinazione dei due piranometri (TX1 e TX3) per l'irraggiamento di riferimento del PR.</td>
+                            <td><strong>Media (Average)</strong> è il valore predefinito: media aritmetica dei due sensori secondo lo standard IEC (la tolleranza differenziale non viene applicata). <strong>Conditional MAX</strong> è l'alternativa più conservativa che usa il sensore maggiore quando i due piranometri divergono oltre la tolleranza impostata.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -559,7 +565,12 @@
         <!-- TAB 3: TARGET PVSYST -->
         <div id="tab-cruscotto" class="tab-content">
             <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem;">📊 Target Performance Ratio PVSyst</h1>
-            <p style="color: var(--text-muted);">Tabella dei valori mensili contrattuali attesi per l'anno in corso per il Performance Ratio di impianto.</p>
+            <p style="color: var(--text-muted);">Tabella dei valori mensili contrattuali attesi per il Performance Ratio di impianto. La colonna <strong>Target Corretto</strong> riporta il valore effettivamente usato dal motore dopo la degradazione contrattuale.</p>
+
+            <div style="margin: 0.5rem 0 1.25rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-left: 4px solid var(--border-hover); border-radius: 10px; padding: 1rem 1.25rem;">
+                <strong style="color: var(--border-hover);">🔻 Degradazione del Target (Allegato 9.1)</strong>
+                <p style="margin: 0.5rem 0 0; color: var(--text-main);">Il PR garantito degrada dello <strong>0,4%/anno</strong>, composto annualmente a partire dall'avvio impianto (Febbraio 2025). L'anno contrattuale decorre da Febbraio a Gennaio: l'Anno 1 (Feb 2025 – Gen 2026) è non degradato, l'Anno 2 (Feb 2026 – Gen 2027) applica un fattore (1&minus;0,4%)<sup>1</sup> = 0,996, e così via. La colonna <em>Target Corretto</em> qui sotto mostra i valori per l'anno contrattuale in corso (2026); nell'applicazione la colonna si aggiorna automaticamente in base all'anno della data selezionata.</p>
+            </div>
 
             <div class="table-container">
                 <table>
@@ -568,6 +579,7 @@
                             <th>Mese</th>
                             <th>Valore Target (Decimale)</th>
                             <th>Valore Target (%)</th>
+                            <th>Target Corretto (Degradazione)</th>
                             <th>Descrizione e Applicazione</th>
                         </tr>
                     </thead>
@@ -576,72 +588,84 @@
                             <td style="font-weight: bold; color: var(--text-main);">Gennaio</td>
                             <td>0.904</td>
                             <td>90.4%</td>
-                            <td>Periodo invernale, basse temperature operative dei moduli (efficienza massima).</td>
+                            <td>0.904 (90.4%)</td>
+                            <td>Periodo invernale, basse temperature operative dei moduli (efficienza massima). Gennaio appartiene all'anno contrattuale precedente (nessuna degradazione aggiuntiva).</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Febbraio</td>
                             <td>0.896</td>
                             <td>89.6%</td>
+                            <td>0.892 (89.2%)</td>
                             <td>Ottime prestazioni per clima fresco.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Marzo</td>
                             <td>0.897</td>
                             <td>89.7%</td>
+                            <td>0.893 (89.3%)</td>
                             <td>Equinozio di primavera, condizioni stabili.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Aprile</td>
                             <td>0.868</td>
                             <td>86.8%</td>
+                            <td>0.865 (86.5%)</td>
                             <td>Aumento graduale dell'irraggiamento e temperatura.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Maggio</td>
                             <td>0.832</td>
                             <td>83.2%</td>
+                            <td>0.829 (82.9%)</td>
                             <td>Avvio della stagione calda, riduzione teorica per perdite di temperatura.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Giugno</td>
                             <td>0.833</td>
                             <td>83.3%</td>
+                            <td>0.830 (83.0%)</td>
                             <td>Solstizio d'estate, alta radiazione ma temperature critiche.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Luglio</td>
                             <td>0.820</td>
                             <td>82.0%</td>
+                            <td>0.817 (81.7%)</td>
                             <td>Picco termico estivo (valore di Target minimo dell'anno).</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Agosto</td>
                             <td>0.828</td>
                             <td>82.8%</td>
+                            <td>0.825 (82.5%)</td>
                             <td>Temperature elevate ma con irraggiamento in lieve diminuzione.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Settembre</td>
                             <td>0.852</td>
                             <td>85.2%</td>
+                            <td>0.849 (84.9%)</td>
                             <td>Transizione autunnale, moduli più freschi.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Ottobre</td>
                             <td>0.876</td>
                             <td>87.6%</td>
+                            <td>0.872 (87.2%)</td>
                             <td>Temperature moderate, buone performance generali.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Novembre</td>
                             <td>0.894</td>
                             <td>89.4%</td>
+                            <td>0.890 (89.0%)</td>
                             <td>Fase fredda, incremento del PR.</td>
                         </tr>
                         <tr>
                             <td style="font-weight: bold; color: var(--text-main);">Dicembre</td>
                             <td>0.900</td>
                             <td>90.0%</td>
+                            <td>0.896 (89.6%)</td>
                             <td>Mese a efficienza termica ottimale.</td>
                         </tr>
                     </tbody>

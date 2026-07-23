@@ -163,17 +163,17 @@ PR (%) =  ------------------------------------------  × 100
       <h3><span class="lang-en">3.1 Reference irradiance (Column I)</span><span class="lang-it">3.1 Irraggiamento di riferimento (Colonna I)</span></h3>
       <p><span class="lang-en">Convert each 15-min irradiance reading to energy density:</span><span class="lang-it">Converti ogni lettura di irraggiamento da 15 min in densità di energia:</span></p>
       <pre><code>kWh/m²  =  W/m²  ÷  4000        <span class="lang-en">(÷1000 W→kW, ÷4 for 15 min)</span><span class="lang-it">(÷1000 W→kW, ÷4 per 15 min)</span></code></pre>
-      <p><span class="lang-en">Pick one reference from the two sensors (<b>Conditional MAX</b>, default):</span><span class="lang-it">Scegli un riferimento tra i due sensori (<b>MAX Condizionale</b>, predefinito):</span></p>
+      <p><span class="lang-en">Pick one reference from the two sensors (<b>Average</b>, default; <b>Conditional MAX</b> optional):</span><span class="lang-it">Scegli un riferimento tra i due sensori (<b>Media</b>, predefinito; <b>MAX Condizionale</b> opzionale):</span></p>
       <pre><code><span class="lang-en">if both 0:            reference = 0
 if exactly one 0:    reference = working sensor
-if |P1−P3|/avg > 10%: reference = HIGHER sensor
-else:                reference = average
+else:                reference = average          (Average, default)
+   Conditional MAX only: if |P1−P3|/avg > 10% → HIGHER sensor
 gate: if reference×4000 < 50 W/m² → 0</span><span class="lang-it">se entrambi 0:        riferimento = 0
 se uno solo 0:        riferimento = sensore attivo
-se |P1−P3|/media>10%: riferimento = sensore PIÙ ALTO
-altrimenti:           riferimento = media
+altrimenti:           riferimento = media          (Media, predefinito)
+   solo MAX Condizionale: se |P1−P3|/media > 10% → sensore PIÙ ALTO
 soglia: se rif×4000 < 50 W/m² → 0</span></code></pre>
-      <div class="callout"><span class="lang-en">A dirty/shaded sensor reads too low; trusting the higher one is conservative and avoids inflating PR. <code>Σ I</code> = daily sum of Column I (kWh/m²).</span><span class="lang-it">Un sensore sporco/in ombra legge troppo basso; fidarsi del più alto è prudente ed evita di gonfiare il PR. <code>Σ I</code> = somma giornaliera della Colonna I (kWh/m²).</span></div>
+      <div class="callout"><span class="lang-en">The default Average is the plain IEC mean of the two sensors. Conditional MAX instead trusts the higher sensor when they disagree beyond tolerance: a dirty/shaded sensor reads too low, so this is conservative and avoids inflating PR. <code>Σ I</code> = daily sum of Column I (kWh/m²).</span><span class="lang-it">La Media predefinita è la semplice media IEC dei due sensori. Il MAX Condizionale, invece, si fida del sensore più alto quando discordano oltre la tolleranza: un sensore sporco/in ombra legge troppo basso, quindi è prudente ed evita di gonfiare il PR. <code>Σ I</code> = somma giornaliera della Colonna I (kWh/m²).</span></div>
 
       <h3><span class="lang-en">3.2 Energy &amp; 3.3 Raw PR</span><span class="lang-it">3.2 Energia e 3.3 PR Raw</span></h3>
       <pre><code><span class="lang-en">inverter_energy = power_kW × 0.25          (15 min)
@@ -233,8 +233,8 @@ Column I = 0.24475   (×4000 = 979 ≥ 50 ✓)
           <div class="fld"><label>POA3 TX3 (W/m²)</label><input id="poa3" type="number" value="968" oninput="calcRef()"></div>
           <div class="fld"><label><span class="lang-en">Method</span><span class="lang-it">Metodo</span></label>
             <select id="method" onchange="calcRef()">
+              <option value="average" selected>Average / Media</option>
               <option value="condmax">Conditional MAX</option>
-              <option value="average">Average / Media</option>
             </select></div>
           <div class="fld"><label><span class="lang-en">Tolerance %</span><span class="lang-it">Tolleranza %</span></label><input id="tol" type="number" value="10" oninput="calcRef()"></div>
         </div>

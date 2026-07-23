@@ -288,6 +288,9 @@ class PRCalculatorGUI:
         # Setup GUI elements
         self.create_layout()
         
+        # Sync dependent widgets to the default POA method (Media disables the diff tolerance)
+        self._on_poa_method_change()
+        
         # Select active month row in PVSyst reference treeview on startup
         try:
             self.pvsyst_tree.selection_set(f"m{current_month}")
@@ -310,6 +313,22 @@ class PRCalculatorGUI:
     def create_card(self, parent, padding=16):
         card = RoundedCard(parent, bg="#ffffff", border_color="#dadce0", radius=12, padding=padding)
         return card, card.content_frame
+
+    def _wrap_label(self, label, container):
+        """Make a left-aligned tk.Label wrap to the live width of `container` instead of
+        overflowing/clipping. Keeps long descriptive/hint text fully readable at any window
+        size. Guarded against re-layout feedback loops via a cached last width."""
+        label.configure(justify="left")
+        label._wrap_cache = -1
+        def _update(event):
+            new_wrap = max(140, event.width - 6)
+            if label._wrap_cache != new_wrap:
+                label._wrap_cache = new_wrap
+                try:
+                    label.config(wraplength=new_wrap)
+                except Exception:
+                    pass
+        container.bind("<Configure>", _update, add="+")
 
     def create_layout(self):
         # Top Header Bar spanning full width
@@ -372,6 +391,7 @@ class PRCalculatorGUI:
         # Add descriptive help text for inputs card
         lbl_desc_in = tk.Label(inputs_card, text="Seleziona la cartella contenente i dati SCADA e configura i parametri.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         lbl_desc_in.pack(anchor="w", pady=(0, 10))
+        self._wrap_label(lbl_desc_in, inputs_card)
         
         # Folder row
         folder_frame = tk.Frame(inputs_card, bg="#ffffff")
@@ -429,16 +449,17 @@ class PRCalculatorGUI:
                  fg=self.text_color, font=("Segoe UI Semibold", 9)).pack(anchor="w")
         toggle_row = tk.Frame(poa_method_frame, bg="#ffffff")
         toggle_row.pack(anchor="w", pady=(2, 0))
-        ttk.Radiobutton(toggle_row, text="Conditional MAX", value="condmax",
+        ttk.Radiobutton(toggle_row, text="Conditional MAX", value="condmax", width=16,
                         variable=self.poa_method_var, style="POA.Toolbutton",
                         command=self._on_poa_method_change).pack(side="left")
-        ttk.Radiobutton(toggle_row, text="Media (Average)", value="average",
+        ttk.Radiobutton(toggle_row, text="Media (Average)", value="average", width=16,
                         variable=self.poa_method_var, style="POA.Toolbutton",
                         command=self._on_poa_method_change).pack(side="left", padx=(6, 0))
         self.lbl_poa_method_hint = tk.Label(
             poa_method_frame, bg="#ffffff", fg="#5f6368", font=("Segoe UI", 8),
             text="Media: media aritmetica dei due piranometri (standard IEC). La tolleranza diff. non è usata.")
-        self.lbl_poa_method_hint.pack(anchor="w", pady=(2, 0))
+        self.lbl_poa_method_hint.pack(anchor="w", pady=(2, 0), fill="x")
+        self._wrap_label(self.lbl_poa_method_hint, poa_method_frame)
 
         # Force reprocess checkbox (Batch mode)
         chk_frame = tk.Frame(inputs_card, bg="#ffffff")
@@ -456,7 +477,8 @@ class PRCalculatorGUI:
         
         # Progress/Status
         self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
-        self.lbl_status.pack(anchor="w", pady=(2, 0))
+        self.lbl_status.pack(anchor="w", pady=(2, 0), fill="x")
+        self._wrap_label(self.lbl_status, inputs_card)
         
         # 2. Metrics Frame (Right Card - now containing PVSyst Table)
         metrics_card_border, self.metrics_card = self.create_card(top_grid, padding=15)
@@ -475,8 +497,9 @@ class PRCalculatorGUI:
         lbl_sec_me.pack(anchor="w", pady=(0, 2))
         
         # Add descriptive help text for PVSyst reference table
-        lbl_desc_me = tk.Label(self.metrics_card, text="Valori teorici mensili di Target PR. Il mese attivo viene evidenziato in automatico.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
+        lbl_desc_me = tk.Label(self.metrics_card, text="Valori teorici mensili di Target PR. La colonna Target Corretto mostra il valore degradato usato per l'anno selezionato. Il mese attivo è evidenziato in automatico.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         lbl_desc_me.pack(anchor="w", pady=(0, 8))
+        self._wrap_label(lbl_desc_me, self.metrics_card)
         
         # Table frame with 1px border
         pvsyst_table_border = tk.Frame(self.metrics_card, bg="#dadce0")
@@ -584,6 +607,7 @@ class PRCalculatorGUI:
         
         lbl_desc_log = tk.Label(log_card, text="Messaggi diagnostici in tempo reale sull'elaborazione dei file excel e calcoli.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
         lbl_desc_log.pack(anchor="w", pady=(0, 6))
+        self._wrap_label(lbl_desc_log, log_card)
         
         log_border = tk.Frame(log_card, bg="#dadce0")
         log_border.pack(fill="both", expand=True, pady=(5, 0))
@@ -749,6 +773,25 @@ class PRCalculatorGUI:
             self.lbl_pvsyst_target_val.config(text=f"{val * 100:.3f} %".replace(".", ","))
         except ValueError:
             self.lbl_pvsyst_target_val.config(text="-- %")
+
+    def _refresh_pvsyst_adjusted(self, year=None):
+        """Fill the 'Target Corretto' column with the degradation-adjusted monthly target
+        actually used by the engine for `year` (the contractual 0,4%/anno decay from the
+        Feb-2025 plant start). Falls back to the current calendar year when `year` is None."""
+        if year is None:
+            year = datetime.date.today().year
+        for idx in range(1, 13):
+            base = self.pvsyst_monthly[idx]
+            try:
+                _n, factor = self._pr_degradation_factor(year, idx)
+                adjusted = base * factor
+                text = f"{adjusted:.3f}".replace(".", ",")
+            except Exception:
+                text = "--"
+            try:
+                self.pvsyst_tree.set(f"m{idx}", "Target Corretto", text)
+            except Exception:
+                pass
             
     def start_calculation(self):
         folder = self.folder_path_var.get()
