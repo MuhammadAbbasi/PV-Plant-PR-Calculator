@@ -205,6 +205,16 @@ class PRCalculatorGUI:
         self.style.configure("Action.TButton", background=self.accent_color, foreground="#ffffff", font=("Segoe UI Semibold", 11, "bold"), padding=[20, 10])
         self.style.map("Action.TButton", background=[("active", self.accent_hover)])
         
+        # Safe-stop button: outlined Google-red, muted while idle/disabled
+        self.style.configure("Stop.TButton", background="#ffffff", foreground="#d93025",
+                             bordercolor="#f2b8b5", lightcolor="#f2b8b5", darkcolor="#f2b8b5",
+                             borderwidth=1, font=("Segoe UI Semibold", 10), padding=[16, 7])
+        self.style.map("Stop.TButton",
+                       background=[("active", "#fce8e6"), ("disabled", "#ffffff")],
+                       foreground=[("disabled", "#bdc1c6")],
+                       bordercolor=[("active", "#d93025"), ("disabled", "#e8eaed")],
+                       lightcolor=[("disabled", "#e8eaed")], darkcolor=[("disabled", "#e8eaed")])
+        
         # Segmented toggle styling for the POA reference method (themed pill buttons).
         # Unselected: white surface with accent text and a light border. Selected: filled
         # accent background with white text so the active choice is obvious at a glance.
@@ -275,6 +285,9 @@ class PRCalculatorGUI:
         # Default is Media (Average) — the IEC-standard two-pyranometer arithmetic mean.
         self.poa_method_var = tk.StringVar(value="average")
         self.reprocess_all_var = tk.BooleanVar(value=False)
+        # Safe-stop flag: set by the Interrompi button, polled by the worker at checkpoints
+        # between days so the in-flight day finishes writing before we halt.
+        self.stop_requested = threading.Event()
         
         # Register a trace on date_var to auto-update the PVSyst PR default value
         self.date_var.trace_add("write", self.on_date_changed)
@@ -379,8 +392,11 @@ class PRCalculatorGUI:
         # Top Grid: Inputs (Left) and Metrics (Right)
         top_grid = tk.Frame(main_frame, bg=self.bg_color)
         top_grid.pack(fill="x", pady=(0, 15))
-        top_grid.columnconfigure(0, weight=4, minsize=400)
-        top_grid.columnconfigure(1, weight=5, minsize=450)
+        # Equal split: the left card must fit the full "Ricalcola forzatamente..." checkbox
+        # label (~450px), which the old 4:5 weighting squeezed once the PVSyst table gained
+        # its 4th column.
+        top_grid.columnconfigure(0, weight=1, minsize=460)
+        top_grid.columnconfigure(1, weight=1, minsize=440)
         
         # 1. Inputs Frame (Card style using helper)
         inputs_card_border, inputs_card = self.create_card(top_grid, padding=15)
@@ -474,7 +490,11 @@ class PRCalculatorGUI:
         
         # Action button
         self.btn_calculate = ttk.Button(inputs_card, text="Calcola Performance Ratio", style="Action.TButton", command=self.start_calculation)
-        self.btn_calculate.pack(fill="x", pady=(5, 5))
+        self.btn_calculate.pack(fill="x", pady=(5, 4))
+        
+        self.btn_stop = ttk.Button(inputs_card, text="Interrompi (arresto sicuro)", style="Stop.TButton",
+                                   command=self.request_stop, state="disabled")
+        self.btn_stop.pack(fill="x", pady=(0, 5))
         
         # Progress/Status
         self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
@@ -817,7 +837,9 @@ class PRCalculatorGUI:
             messagebox.showerror("Errore", "La data deve essere nel formato AAAA-MM-GG!")
             return
             
+        self.stop_requested.clear()
         self.btn_calculate.config(state="disabled")
+        self.btn_stop.config(state="normal")
         self.btn_export.config(state="disabled")
         self.lbl_status.config(text="Calcolo del PR in corso... attendere prego...", foreground=self.warn_color)
         
@@ -825,6 +847,17 @@ class PRCalculatorGUI:
         thread = threading.Thread(target=self.run_calculation, args=(folder, date_str, pvsyst_pr, threshold, diff_threshold, poa_method))
         thread.start()
         
+    def request_stop(self):
+        """Safe stop: never kills work mid-write. Sets a flag the worker polls at its
+        checkpoints (between days, between VCOM downloads/conversions), so the operation
+        already in flight completes and we halt at the next boundary."""
+        self.stop_requested.set()
+        self.btn_stop.config(state="disabled")
+        self.lbl_status.config(
+            text="Arresto richiesto: completamento dell'operazione in corso...",
+            foreground=self.warn_color)
+        print(">>> Arresto richiesto dall'utente. Completamento dell'operazione corrente, poi stop.")
+
     def _on_poa_method_change(self):
         """Enable the deviation-tolerance field only for Conditional MAX; update the hint."""
         try:
@@ -894,6 +927,19 @@ class PRCalculatorGUI:
         import time
         from playwright.sync_api import sync_playwright
         
+        # Frozen (PyInstaller) builds resolve the Playwright browser path to the temporary
+        # _MEIxxxx extraction dir, which contains no browsers. Point it at the real per-user
+        # install so the .exe finds the same browsers as a plain .py run.
+        if not os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+            _browsers_dir = os.path.join(
+                os.environ.get("LOCALAPPDATA", os.path.expanduser(r"~\AppData\Local")),
+                "ms-playwright")
+            if os.path.isdir(_browsers_dir):
+                os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
+            else:
+                print(f"[VCOM-Downloader] ATTENZIONE: browser Playwright non trovati in {_browsers_dir}. "
+                      "Esegui 'playwright install chromium'.")
+        
         config_path = r"\\s01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\VCOM Automation\config.json"
         if not os.path.exists(config_path):
             print(f"[VCOM-Downloader] Error: Config not found at {config_path}")
@@ -917,7 +963,8 @@ class PRCalculatorGUI:
             return True
             
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            # Headed: the extraction is slow and DOM-sensitive, so keep it visible to watch.
+            browser = p.chromium.launch(headless=False)
             context = browser.new_context(viewport={"width": 1450, "height": 900})
             page = context.new_page()
             
@@ -2536,6 +2583,9 @@ class PRCalculatorGUI:
                         if dl_approved:
                             print("[VCOM-Downloader] Avvio download dati VCOM mancanti...")
                             for d_str in vcom_downloadable:
+                                if self.stop_requested.is_set():
+                                    print("[VCOM-Downloader] Arresto richiesto: download interrotto.")
+                                    break
                                 d_path = os.path.join(folder, d_str)
                                 vcom_dir = os.path.join(d_path, "vcom")
                                 target_date_str = f"{year_val:04d}-{month_val:02d}-{int(d_str):02d}"
@@ -2566,6 +2616,9 @@ class PRCalculatorGUI:
                             from VCOM_to_SCADA import convert_vcom_to_scada
                             import shutil
                             for d_str, v_dir in vcom_convertible.items():
+                                if self.stop_requested.is_set():
+                                    print("[VCOM-Pre-calcolo] Arresto richiesto: conversione interrotta.")
+                                    break
                                 d_path = os.path.join(folder, d_str)
                                 target_date_str = f"{year_val:04d}-{month_val:02d}-{int(d_str):02d}"
                                 print(f"[VCOM-Pre-calcolo] Generazione dati pseudo-SCADA per il Giorno {d_str} ({target_date_str})...")
@@ -2605,7 +2658,14 @@ class PRCalculatorGUI:
                             print(f"[Batch] Giorno {d} SALTATO per dati mancanti: {', '.join(bypassed_days[d])}.")
 
                 bypassed_count = 0
+                stopped_early = False
                 for idx, day_str in enumerate(numerical_subdirs):
+                    # Safe-stop checkpoint: the previous day is fully written at this point,
+                    # so breaking here leaves the output set consistent.
+                    if self.stop_requested.is_set():
+                        stopped_early = True
+                        print(f"[Batch] Arresto richiesto: interrotto dopo {processed_count} giorno/i elaborato/i.")
+                        break
                     day_val = int(day_str)
                     target_date_str = f"{year_val:04d}-{month_val:02d}-{day_val:02d}"
                     daily_filename = f"PR_recalculation_{day_val:02d}_{month_name}.xlsx"
@@ -2642,9 +2702,10 @@ class PRCalculatorGUI:
                 
                 if processed_count == 0:
                     bypass_txt = f" {bypassed_count} saltati per dati mancanti." if bypassed_count else ""
-                    status_msg = f"Nessun nuovo giorno elaborato ({skipped_count} già presenti).{bypass_txt} Sincronizzato il file Madre."
+                    stop_txt = " Elaborazione interrotta dall'utente." if stopped_early else ""
+                    status_msg = f"Nessun nuovo giorno elaborato ({skipped_count} già presenti).{bypass_txt}{stop_txt} Sincronizzato il file Madre."
                     self.root.after(0, lambda m=status_msg: self.lbl_status.config(text=m, foreground=self.success_color))
-                    self.root.after(0, lambda: self.btn_calculate.config(state="normal"))
+                    self.root.after(0, self._reset_run_buttons)
                     return
                     
                 # Display results of the last processed day on GUI dashboard
@@ -2652,7 +2713,11 @@ class PRCalculatorGUI:
                 self.calc_results = last_calc_results
                 
                 bypass_txt = f", {bypassed_count} saltati per dati mancanti" if bypassed_count else ""
-                success_msg = f"Batch completato! Elaborati: {processed_count} giorni{bypass_txt}. Sincronizzato file Madre."
+                if stopped_early:
+                    success_msg = (f"Elaborazione interrotta dall'utente. Completati: {processed_count} giorni"
+                                   f"{bypass_txt}. Sincronizzato file Madre.")
+                else:
+                    success_msg = f"Batch completato! Elaborati: {processed_count} giorni{bypass_txt}. Sincronizzato file Madre."
                 self.root.after(0, lambda m=success_msg: self.lbl_status.config(text=m, foreground=self.success_color))
                 self.root.after(0, self.update_ui_on_success)
                 
@@ -2710,11 +2775,19 @@ class PRCalculatorGUI:
         finally:
             quit_excel_app()
             
+    def _reset_run_buttons(self):
+        """Return the run controls to idle: Calcola enabled, Interrompi disabled."""
+        try:
+            self.btn_calculate.config(state="normal")
+            self.btn_stop.config(state="disabled")
+        except Exception:
+            pass
+
     def update_ui_on_success(self):
         res = self.calc_results
         
         # Enable controls
-        self.btn_calculate.config(state="normal")
+        self._reset_run_buttons()
         self.btn_export.config(state="normal")
         
         # Display main metrics
@@ -2771,7 +2844,7 @@ class PRCalculatorGUI:
         messagebox.showinfo("Successo", msg)
         
     def update_ui_on_failure(self, error_message):
-        self.btn_calculate.config(state="normal")
+        self._reset_run_buttons()
         self.btn_export.config(state="disabled")
         self.lbl_status.config(text="Calcolo fallito!", foreground="red")
         messagebox.showerror("Errore di Calcolo", error_message)
