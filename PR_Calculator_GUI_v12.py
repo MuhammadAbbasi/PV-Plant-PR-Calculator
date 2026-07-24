@@ -497,8 +497,8 @@ class PRCalculatorGUI:
         self.btn_stop.pack(fill="x", pady=(0, 5))
         
         # Progress/Status
-        self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 10))
-        self.lbl_status.pack(anchor="w", pady=(2, 0), fill="x")
+        self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 11))
+        self.lbl_status.pack(anchor="w", pady=(4, 4), fill="x")
         self._wrap_label(self.lbl_status, inputs_card)
         
         # 2. Metrics Frame (Right Card - now containing PVSyst Table)
@@ -923,10 +923,27 @@ class PRCalculatorGUI:
                 f.write(row_line + "\r\n")
 
     def _download_vcom_data(self, date_str, output_vcom_folder):
+        """Single-day wrapper — delegates to the batch method so the browser is
+        only opened once even when called for a single day."""
+        results = self._download_vcom_data_batch([(date_str, output_vcom_folder)])
+        return results.get(date_str, False)
+
+    def _download_vcom_data_batch(self, date_folder_pairs):
+        """Download VCOM data for *all* requested days in a single browser session.
+
+        Parameters
+        ----------
+        date_folder_pairs : list of (date_str, output_vcom_folder)
+            Each element is a (YYYY-MM-DD, path) pair.
+
+        Returns
+        -------
+        dict  {date_str: bool}  – True if both files were obtained for that date.
+        """
         import json
         import time
         from playwright.sync_api import sync_playwright
-        
+
         # Frozen (PyInstaller) builds resolve the Playwright browser path to the temporary
         # _MEIxxxx extraction dir, which contains no browsers. Point it at the real per-user
         # install so the .exe finds the same browsers as a plain .py run.
@@ -939,51 +956,59 @@ class PRCalculatorGUI:
             else:
                 print(f"[VCOM-Downloader] ATTENZIONE: browser Playwright non trovati in {_browsers_dir}. "
                       "Esegui 'playwright install chromium'.")
-        
+
         config_path = r"\\s01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\VCOM Automation\config.json"
         if not os.path.exists(config_path):
             print(f"[VCOM-Downloader] Error: Config not found at {config_path}")
-            return False
-            
+            return {d: False for d, _ in date_folder_pairs}
+
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
         except Exception as e:
             print(f"[VCOM-Downloader] Error reading config: {e}")
-            return False
-            
-        os.makedirs(output_vcom_folder, exist_ok=True)
-        prod_path = os.path.join(output_vcom_folder, f"Produzione_energetica_{date_str.replace('-', '_')}.csv")
-        ac_path = os.path.join(output_vcom_folder, f"Potenza_AC_{date_str.replace('-', '_')}.csv")
-        
-        success_prod = os.path.exists(prod_path) and os.path.getsize(prod_path) > 1000
-        success_ac = os.path.exists(ac_path) and os.path.getsize(ac_path) > 1000
-        
-        if success_prod and success_ac:
-            return True
-            
+            return {d: False for d, _ in date_folder_pairs}
+
+        # Pre-check which dates actually need downloading
+        todo = []   # (date_str, output_vcom_folder, prod_path, ac_path)
+        results = {}
+        for date_str, output_vcom_folder in date_folder_pairs:
+            os.makedirs(output_vcom_folder, exist_ok=True)
+            prod_path = os.path.join(output_vcom_folder, f"Produzione_energetica_{date_str.replace('-', '_')}.csv")
+            ac_path   = os.path.join(output_vcom_folder, f"Potenza_AC_{date_str.replace('-', '_')}.csv")
+            already_prod = os.path.exists(prod_path) and os.path.getsize(prod_path) > 1000
+            already_ac   = os.path.exists(ac_path)   and os.path.getsize(ac_path)   > 1000
+            if already_prod and already_ac:
+                results[date_str] = True
+            else:
+                todo.append((date_str, output_vcom_folder, prod_path, ac_path, already_prod, already_ac))
+
+        if not todo:
+            return results   # everything was already cached
+
         with sync_playwright() as p:
             # Headed: the extraction is slow and DOM-sensitive, so keep it visible to watch.
             browser = p.chromium.launch(headless=False)
             context = browser.new_context(viewport={"width": 1450, "height": 900})
             page = context.new_page()
-            
+
             try:
-                print(f"[VCOM-Downloader] Logging in to VCOM for date {date_str}...")
+                # ---- LOGIN (once) ----
+                print(f"[VCOM-Downloader] Logging in to VCOM (session per {len(todo)} giorno/i)...")
                 page.goto(cfg["SYSTEM_URL"], timeout=60000)
                 page.wait_for_load_state("networkidle")
-                
+
                 try:
                     page.locator('button:has-text("Usa solo i cookie necessari"), button:has-text("Accetta tutti i cookie")').click(timeout=5000)
                 except Exception:
                     pass
-                    
+
                 if page.locator('input[type="password"]:visible').count() > 0:
                     page.locator('input[type="text"]:visible').first.fill(cfg["USERNAME"])
                     page.locator('input[type="password"]:visible').first.fill(cfg["PASSWORD"])
                     page.locator('button:has-text("Login"), button[type="submit"]').first.click()
                     time.sleep(5)
-                    
+
                 for i in range(3):
                     if page.locator('input#username:visible').count() > 0:
                         page.locator('input#username').fill(cfg["USERNAME"])
@@ -994,13 +1019,13 @@ class PRCalculatorGUI:
                         page.press('input#password', "Enter")
                         break
                     time.sleep(2)
-                    
+
                 for i in range(15):
                     if "auth.meteocontrol.com" not in page.url and "realms" not in page.url and "#state" not in page.url:
                         break
                     time.sleep(2)
                 time.sleep(3)
-                
+
                 def click_dati_tab():
                     try:
                         page.evaluate("""() => {
@@ -1020,17 +1045,9 @@ class PRCalculatorGUI:
                     if "active" not in parent_cls and "selected" not in parent_cls and "ui-tabs-active" not in parent_cls:
                         tab.click()
                         time.sleep(2)
-                
-                # 1. Download Produzione Energetica
-                if not success_prod:
-                    prod_url = f"https://vcom.meteocontrol.com/vcom/evaluation/index/index/systemId/2144635?key=LXLXE&type=ad&date={date_str}T00%3A00%3A00%2B02%3A00&endDate={date_str}T23%3A59%3A59%2B02%3A00"
-                    page.goto(prod_url, timeout=60000)
-                    page.wait_for_load_state("networkidle")
-                    time.sleep(3)
-                    
-                    click_dati_tab()
-                    page.locator("#infotab-data table tbody tr").first.wait_for(state="visible", timeout=25000)
-                    result = page.evaluate("""() => {
+
+                def extract_table():
+                    return page.evaluate("""() => {
                         const table = document.querySelector('#infotab-data table');
                         if (!table) return { headers: [], rows: [] };
                         const thEls = Array.from(table.querySelectorAll('thead tr th'));
@@ -1041,48 +1058,73 @@ class PRCalculatorGUI:
                         );
                         return { headers, rows };
                     }""")
-                    
-                    headers = result.get("headers", [])
-                    rows = result.get("rows", [])
-                    if headers and rows:
-                        self._save_as_vcom_csv(headers, rows, date_str, prod_path)
-                        print(f"[VCOM-Downloader] Saved Produzione Energetica to {prod_path}")
-                        success_prod = True
-                        
-                # 2. Download Potenza AC
-                if not success_ac:
-                    ac_url = f"https://vcom.meteocontrol.com/vcom/evaluation/index/index/systemId/2144635?key=5EJH8&type=wr&date={date_str}T00%3A00%3A00%2B02%3A00&endDate={date_str}T23%3A59%3A59%2B02%3A00"
-                    page.goto(ac_url, timeout=60000)
-                    page.wait_for_load_state("networkidle")
-                    time.sleep(3)
-                    
-                    click_dati_tab()
-                    page.locator("#infotab-data table tbody tr").first.wait_for(state="visible", timeout=25000)
-                    result = page.evaluate("""() => {
-                        const table = document.querySelector('#infotab-data table');
-                        if (!table) return { headers: [], rows: [] };
-                        const thEls = Array.from(table.querySelectorAll('thead tr th'));
-                        const headers = thEls.map(th => th.innerText.trim());
-                        const trEls = Array.from(table.querySelectorAll('tbody tr'));
-                        const rows = trEls.map(tr =>
-                            Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim())
-                        );
-                        return { headers, rows };
-                    }""")
-                    
-                    headers = result.get("headers", [])
-                    rows = result.get("rows", [])
-                    if headers and rows:
-                        self._save_as_vcom_csv(headers, rows, date_str, ac_path)
-                        print(f"[VCOM-Downloader] Saved Potenza AC to {ac_path}")
-                        success_ac = True
-                        
+
+                # ---- LOOP through dates (same session) ----
+                for date_str, output_vcom_folder, prod_path, ac_path, has_prod, has_ac in todo:
+                    if self.stop_requested.is_set():
+                        print("[VCOM-Downloader] Arresto richiesto: download interrotto.")
+                        results[date_str] = False
+                        continue
+
+                    print(f"[VCOM-Downloader] Download in corso per {date_str}...")
+                    day_ok = True
+
+                    # 1. Produzione Energetica
+                    if not has_prod:
+                        try:
+                            prod_url = (f"https://vcom.meteocontrol.com/vcom/evaluation/index/index/"
+                                        f"systemId/2144635?key=LXLXE&type=ad&date={date_str}"
+                                        f"T00%3A00%3A00%2B02%3A00&endDate={date_str}T23%3A59%3A59%2B02%3A00")
+                            page.goto(prod_url, timeout=60000)
+                            page.wait_for_load_state("networkidle")
+                            time.sleep(3)
+                            click_dati_tab()
+                            page.locator("#infotab-data table tbody tr").first.wait_for(state="visible", timeout=25000)
+                            result = extract_table()
+                            headers, rows = result.get("headers", []), result.get("rows", [])
+                            if headers and rows:
+                                self._save_as_vcom_csv(headers, rows, date_str, prod_path)
+                                print(f"[VCOM-Downloader] Saved Produzione Energetica to {prod_path}")
+                            else:
+                                day_ok = False
+                        except Exception as e:
+                            print(f"[VCOM-Downloader] Produzione Energetica error for {date_str}: {e}")
+                            day_ok = False
+
+                    # 2. Potenza AC
+                    if not has_ac:
+                        try:
+                            ac_url = (f"https://vcom.meteocontrol.com/vcom/evaluation/index/index/"
+                                      f"systemId/2144635?key=5EJH8&type=wr&date={date_str}"
+                                      f"T00%3A00%3A00%2B02%3A00&endDate={date_str}T23%3A59%3A59%2B02%3A00")
+                            page.goto(ac_url, timeout=60000)
+                            page.wait_for_load_state("networkidle")
+                            time.sleep(3)
+                            click_dati_tab()
+                            page.locator("#infotab-data table tbody tr").first.wait_for(state="visible", timeout=25000)
+                            result = extract_table()
+                            headers, rows = result.get("headers", []), result.get("rows", [])
+                            if headers and rows:
+                                self._save_as_vcom_csv(headers, rows, date_str, ac_path)
+                                print(f"[VCOM-Downloader] Saved Potenza AC to {ac_path}")
+                            else:
+                                day_ok = False
+                        except Exception as e:
+                            print(f"[VCOM-Downloader] Potenza AC error for {date_str}: {e}")
+                            day_ok = False
+
+                    results[date_str] = day_ok
+
             except Exception as e:
                 print(f"[VCOM-Downloader] Playwright exception: {e}")
             finally:
                 browser.close()
-                
-        return success_prod and success_ac
+
+        # Fill any dates not yet in results (browser crashed before reaching them)
+        for date_str, _ in date_folder_pairs:
+            results.setdefault(date_str, False)
+
+        return results
 
     # Required SCADA inputs for one day, as (human label, filename patterns).
     REQUIRED_DAY_FILES = [
@@ -1123,6 +1165,112 @@ class PRCalculatorGUI:
             except Exception:
                 q.put(False)
         self.root.after(0, _ask)
+        return q.get()
+
+    def _ask_select_days_on_gui(self, title, message, day_strings):
+        """Show a modal dialog with a checkbox for each day (all checked by default).
+        Returns the list of day_strings the user left checked, or [] if cancelled.
+        Safe to call from the worker thread."""
+        import threading as _t
+        import queue
+        q = queue.Queue()
+
+        def _show():
+            try:
+                dlg = tk.Toplevel(self.root)
+                dlg.title(title)
+                dlg.configure(bg="#ffffff")
+                dlg.resizable(False, False)
+                dlg.grab_set()
+                dlg.transient(self.root)
+
+                # Window size
+                dw = 460
+                dh = min(620, max(380, 120 + 32 * len(day_strings)))
+                dlg.geometry(f"{dw}x{dh}+{px + (pw - dw) // 2}+{py + (ph - dh) // 2}")
+                dlg.resizable(True, True)
+
+                # 1. Message (TOP)
+                tk.Label(dlg, text=message, bg="#ffffff", fg="#202124",
+                         font=("Segoe UI", 10, "bold"), wraplength=420, justify="left"
+                         ).pack(side="top", anchor="w", padx=16, pady=(14, 8))
+
+                # 2. Button Frame (BOTTOM - packed first so it's guaranteed visible at the bottom)
+                btn_frame = tk.Frame(dlg, bg="#ffffff")
+                btn_frame.pack(side="bottom", fill="x", padx=16, pady=(10, 14))
+
+                # 3. Middle Scrollable Frame (CENTER - fills remaining space)
+                middle_frame = tk.Frame(dlg, bg="#ffffff")
+                middle_frame.pack(side="top", fill="both", expand=True, padx=16, pady=(0, 4))
+
+                canvas = tk.Canvas(middle_frame, bg="#ffffff", highlightthickness=0)
+                scrollbar = ttk.Scrollbar(middle_frame, orient="vertical", command=canvas.yview)
+                inner = tk.Frame(canvas, bg="#ffffff")
+                inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+                canvas.create_window((0, 0), window=inner, anchor="nw")
+                canvas.configure(yscrollcommand=scrollbar.set)
+                
+                scrollbar.pack(side="right", fill="y")
+                canvas.pack(side="left", fill="both", expand=True)
+
+                # Mouse-wheel scrolling
+                def _on_mousewheel(event):
+                    canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+                vars_map = {}
+                for ds in sorted(day_strings, key=lambda x: int(x)):
+                    var = tk.BooleanVar(value=True)
+                    vars_map[ds] = var
+                    cb = tk.Checkbutton(inner, text=f"Giorno {ds}", variable=var,
+                                        bg="#ffffff", fg="#202124",
+                                        font=("Segoe UI", 10), anchor="w",
+                                        activebackground="#f1f3f4")
+                    cb.pack(fill="x", padx=4, pady=2)
+
+                # Select all / Deselect all + OK / Cancel buttons
+                def _select_all():
+                    for v in vars_map.values():
+                        v.set(True)
+                def _deselect_all():
+                    for v in vars_map.values():
+                        v.set(False)
+
+                tk.Button(btn_frame, text="Seleziona tutti", command=_select_all,
+                          font=("Segoe UI", 9), relief="flat", bg="#f1f3f4", cursor="hand2"
+                          ).pack(side="left", padx=(0, 4))
+                tk.Button(btn_frame, text="Deseleziona tutti", command=_deselect_all,
+                          font=("Segoe UI", 9), relief="flat", bg="#f1f3f4", cursor="hand2"
+                          ).pack(side="left", padx=(0, 12))
+
+                def _ok():
+                    canvas.unbind_all("<MouseWheel>")
+                    selected = [d for d, v in vars_map.items() if v.get()]
+                    q.put(selected)
+                    dlg.destroy()
+                def _cancel():
+                    canvas.unbind_all("<MouseWheel>")
+                    q.put([])
+                    dlg.destroy()
+
+                tk.Button(btn_frame, text="Annulla", command=_cancel,
+                          font=("Segoe UI", 10), width=10, relief="flat", bg="#e8eaed", cursor="hand2"
+                          ).pack(side="right", padx=(4, 0))
+                tk.Button(btn_frame, text="Scarica", command=_ok,
+                          font=("Segoe UI Semibold", 10, "bold"), width=10,
+                          fg="#ffffff", bg=self.accent_color, activebackground=self.accent_hover,
+                          relief="flat", cursor="hand2"
+                          ).pack(side="right", padx=(4, 0))
+
+                dlg.protocol("WM_DELETE_WINDOW", _cancel)
+                dlg.wait_window()
+            except Exception:
+                q.put([])
+
+        if _t.current_thread() is _t.main_thread():
+            _show()
+        else:
+            self.root.after(0, _show)
         return q.get()
 
     def _force_close_workbook(self, file_path, exclude_hwnd=None):
@@ -2573,28 +2721,29 @@ class PRCalculatorGUI:
                 if bypassed_days:
                     # If some missing days do not have VCOM locally, ask to download them
                     if vcom_downloadable:
-                        download_list = ", ".join(sorted(vcom_downloadable, key=lambda x: int(x)))
-                        dl_approved = self._ask_yes_no_on_gui(
+                        selected_days = self._ask_select_days_on_gui(
                             "Dati mancanti - Download VCOM",
-                            f"I file SCADA e VCOM per i seguenti giorni sono mancanti:\n\n"
-                            f"   • Giorni da scaricare: {download_list}\n\n"
-                            "Vuoi avviare il download automatico dei dati VCOM da meteocontrol?"
+                            "I file SCADA e VCOM per i seguenti giorni sono mancanti.\n"
+                            "Seleziona i giorni per cui scaricare i dati VCOM da meteocontrol:",
+                            vcom_downloadable
                         )
-                        if dl_approved:
-                            print("[VCOM-Downloader] Avvio download dati VCOM mancanti...")
-                            for d_str in vcom_downloadable:
-                                if self.stop_requested.is_set():
-                                    print("[VCOM-Downloader] Arresto richiesto: download interrotto.")
-                                    break
+                        if selected_days:
+                            print(f"[VCOM-Downloader] Avvio download dati VCOM per {len(selected_days)} giorno/i...")
+                            batch_pairs = []
+                            for d_str in selected_days:
                                 d_path = os.path.join(folder, d_str)
                                 vcom_dir = os.path.join(d_path, "vcom")
                                 target_date_str = f"{year_val:04d}-{month_val:02d}-{int(d_str):02d}"
-                                print(f"[VCOM-Downloader] Download in corso per il Giorno {d_str} ({target_date_str})...")
-                                success = self._download_vcom_data(target_date_str, vcom_dir)
-                                if success:
-                                    vcom_convertible[d_str] = vcom_dir
+                                batch_pairs.append((target_date_str, vcom_dir))
+                            batch_results = self._download_vcom_data_batch(batch_pairs)
+                            for d_str in selected_days:
+                                target_date_str = f"{year_val:04d}-{month_val:02d}-{int(d_str):02d}"
+                                if batch_results.get(target_date_str, False):
+                                    vcom_convertible[d_str] = os.path.join(folder, d_str, "vcom")
                                 else:
                                     print(f"[VCOM-Downloader] Download fallito per il Giorno {d_str}")
+                        else:
+                            print("[VCOM-Downloader] Download annullato dall'utente.")
 
                     # If we have VCOM data available (either pre-existing or just downloaded), offer automatic conversion
                     if vcom_convertible:
@@ -2952,6 +3101,13 @@ class PRCalculatorGUI:
 
 
 if __name__ == "__main__":
+    # Enable Windows DPI awareness so fonts and widgets render at the native
+    # display scale instead of being bitmap-stretched (fixes "shrunken text").
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)   # PROCESS_SYSTEM_DPI_AWARE
+    except Exception:
+        pass
     root = tk.Tk()
     app = PRCalculatorGUI(root)
     root.mainloop()
