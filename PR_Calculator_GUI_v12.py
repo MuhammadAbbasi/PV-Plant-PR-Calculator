@@ -1184,7 +1184,10 @@ class PRCalculatorGUI:
                 dlg.grab_set()
                 dlg.transient(self.root)
 
-                # Window size
+                # Window size and centering
+                dlg.update_idletasks()
+                pw, ph = self.root.winfo_width(), self.root.winfo_height()
+                px, py = self.root.winfo_rootx(), self.root.winfo_rooty()
                 dw = 460
                 dh = min(620, max(380, 120 + 32 * len(day_strings)))
                 dlg.geometry(f"{dw}x{dh}+{px + (pw - dw) // 2}+{py + (ph - dh) // 2}")
@@ -1264,7 +1267,10 @@ class PRCalculatorGUI:
 
                 dlg.protocol("WM_DELETE_WINDOW", _cancel)
                 dlg.wait_window()
-            except Exception:
+            except Exception as e:
+                import traceback
+                print(f"[Dialog-Error] Exception in _ask_select_days_on_gui: {e}")
+                traceback.print_exc()
                 q.put([])
 
         if _t.current_thread() is _t.main_thread():
