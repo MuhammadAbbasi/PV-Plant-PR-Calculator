@@ -870,6 +870,173 @@ class PRCalculatorGUI:
                     pass
         return None
 
+    def _save_as_vcom_csv(self, headers, rows, date_str, output_path):
+        import codecs
+        from datetime import datetime
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        period_str = f"Periodo: {dt.day}/{dt.month}/{dt.year} 0.00.00 - {dt.day}/{dt.month}/{dt.year} 23.59.59"
+        
+        if headers and headers[0].lower() in ["ora", "time", "date"]:
+            headers[0] = "Data"
+            
+        with codecs.open(output_path, "w", encoding="utf-16") as f:
+            f.write(f'"{period_str}"\r\n\r\n')
+            
+            hdr_line = "\t".join(f'"{h}"' for h in headers)
+            f.write(hdr_line + "\r\n")
+            
+            for r in rows:
+                row_line = "\t".join(f'"{cell}"' for cell in r)
+                f.write(row_line + "\r\n")
+
+    def _download_vcom_data(self, date_str, output_vcom_folder):
+        import json
+        import time
+        from playwright.sync_api import sync_playwright
+        
+        config_path = r"\\s01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\VCOM Automation\config.json"
+        if not os.path.exists(config_path):
+            print(f"[VCOM-Downloader] Error: Config not found at {config_path}")
+            return False
+            
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+        except Exception as e:
+            print(f"[VCOM-Downloader] Error reading config: {e}")
+            return False
+            
+        os.makedirs(output_vcom_folder, exist_ok=True)
+        prod_path = os.path.join(output_vcom_folder, f"Produzione_energetica_{date_str.replace('-', '_')}.csv")
+        ac_path = os.path.join(output_vcom_folder, f"Potenza_AC_{date_str.replace('-', '_')}.csv")
+        
+        success_prod = os.path.exists(prod_path) and os.path.getsize(prod_path) > 1000
+        success_ac = os.path.exists(ac_path) and os.path.getsize(ac_path) > 1000
+        
+        if success_prod and success_ac:
+            return True
+            
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(viewport={"width": 1450, "height": 900})
+            page = context.new_page()
+            
+            try:
+                print(f"[VCOM-Downloader] Logging in to VCOM for date {date_str}...")
+                page.goto(cfg["SYSTEM_URL"], timeout=60000)
+                page.wait_for_load_state("networkidle")
+                
+                try:
+                    page.locator('button:has-text("Usa solo i cookie necessari"), button:has-text("Accetta tutti i cookie")').click(timeout=5000)
+                except Exception:
+                    pass
+                    
+                if page.locator('input[type="password"]:visible').count() > 0:
+                    page.locator('input[type="text"]:visible').first.fill(cfg["USERNAME"])
+                    page.locator('input[type="password"]:visible').first.fill(cfg["PASSWORD"])
+                    page.locator('button:has-text("Login"), button[type="submit"]').first.click()
+                    time.sleep(5)
+                    
+                for i in range(3):
+                    if page.locator('input#username:visible').count() > 0:
+                        page.locator('input#username').fill(cfg["USERNAME"])
+                        page.press('input#username', "Enter")
+                        time.sleep(3)
+                    if page.locator('input#password:visible').count() > 0:
+                        page.locator('input#password').fill(cfg["PASSWORD"])
+                        page.press('input#password', "Enter")
+                        break
+                    time.sleep(2)
+                    
+                for i in range(15):
+                    if "auth.meteocontrol.com" not in page.url and "realms" not in page.url and "#state" not in page.url:
+                        break
+                    time.sleep(2)
+                time.sleep(3)
+                
+                def click_dati_tab():
+                    try:
+                        page.evaluate("""() => {
+                            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                            document.querySelectorAll('.modal.show, .modal.fade.show').forEach(el => {
+                                el.classList.remove('show');
+                                el.style.display = 'none';
+                            });
+                        }""")
+                    except Exception:
+                        pass
+                    page.evaluate("window.scrollTo(0, 450)")
+                    time.sleep(0.5)
+                    tab = page.get_by_text("Dati", exact=True).last
+                    tab.wait_for(state="visible", timeout=20000)
+                    parent_cls = tab.evaluate("el => el.parentElement ? el.parentElement.className : ''")
+                    if "active" not in parent_cls and "selected" not in parent_cls and "ui-tabs-active" not in parent_cls:
+                        tab.click()
+                        time.sleep(2)
+                
+                # 1. Download Produzione Energetica
+                if not success_prod:
+                    prod_url = f"https://vcom.meteocontrol.com/vcom/evaluation/index/index/systemId/2144635?key=LXLXE&type=ad&date={date_str}T00%3A00%3A00%2B02%3A00&endDate={date_str}T23%3A59%3A59%2B02%3A00"
+                    page.goto(prod_url, timeout=60000)
+                    page.wait_for_load_state("networkidle")
+                    time.sleep(3)
+                    
+                    click_dati_tab()
+                    page.locator("#infotab-data table tbody tr").first.wait_for(state="visible", timeout=25000)
+                    result = page.evaluate("""() => {
+                        const table = document.querySelector('#infotab-data table');
+                        if (!table) return { headers: [], rows: [] };
+                        const thEls = Array.from(table.querySelectorAll('thead tr th'));
+                        const headers = thEls.map(th => th.innerText.trim());
+                        const trEls = Array.from(table.querySelectorAll('tbody tr'));
+                        const rows = trEls.map(tr =>
+                            Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim())
+                        );
+                        return { headers, rows };
+                    }""")
+                    
+                    headers = result.get("headers", [])
+                    rows = result.get("rows", [])
+                    if headers and rows:
+                        self._save_as_vcom_csv(headers, rows, date_str, prod_path)
+                        print(f"[VCOM-Downloader] Saved Produzione Energetica to {prod_path}")
+                        success_prod = True
+                        
+                # 2. Download Potenza AC
+                if not success_ac:
+                    ac_url = f"https://vcom.meteocontrol.com/vcom/evaluation/index/index/systemId/2144635?key=5EJH8&type=wr&date={date_str}T00%3A00%3A00%2B02%3A00&endDate={date_str}T23%3A59%3A59%2B02%3A00"
+                    page.goto(ac_url, timeout=60000)
+                    page.wait_for_load_state("networkidle")
+                    time.sleep(3)
+                    
+                    click_dati_tab()
+                    page.locator("#infotab-data table tbody tr").first.wait_for(state="visible", timeout=25000)
+                    result = page.evaluate("""() => {
+                        const table = document.querySelector('#infotab-data table');
+                        if (!table) return { headers: [], rows: [] };
+                        const thEls = Array.from(table.querySelectorAll('thead tr th'));
+                        const headers = thEls.map(th => th.innerText.trim());
+                        const trEls = Array.from(table.querySelectorAll('tbody tr'));
+                        const rows = trEls.map(tr =>
+                            Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim())
+                        );
+                        return { headers, rows };
+                    }""")
+                    
+                    headers = result.get("headers", [])
+                    rows = result.get("rows", [])
+                    if headers and rows:
+                        self._save_as_vcom_csv(headers, rows, date_str, ac_path)
+                        print(f"[VCOM-Downloader] Saved Potenza AC to {ac_path}")
+                        success_ac = True
+                        
+            except Exception as e:
+                print(f"[VCOM-Downloader] Playwright exception: {e}")
+            finally:
+                browser.close()
+                
+        return success_prod and success_ac
+
     # Required SCADA inputs for one day, as (human label, filename patterns).
     REQUIRED_DAY_FILES = [
         ("Regolazione Potenza Attiva", ["Regolazione_della_potenza_attiva_*.xlsx", "*potenza_attiva*.xlsx"]),
@@ -2337,6 +2504,7 @@ class PRCalculatorGUI:
                 # complete days, rather than aborting the whole month.
                 bypassed_days = {}
                 vcom_convertible = {}
+                vcom_downloadable = []
                 for day_str in numerical_subdirs:
                     day_val = int(day_str)
                     daily_filename = f"PR_recalculation_{day_val:02d}_{month_name}.xlsx"
@@ -2351,17 +2519,42 @@ class PRCalculatorGUI:
                         vcom_dir = self._find_vcom_folder_for_day(day_path)
                         if vcom_dir:
                             vcom_convertible[day_str] = vcom_dir
+                        else:
+                            # Not available locally, so we can download it!
+                            vcom_downloadable.append(day_str)
 
                 if bypassed_days:
-                    # If we have VCOM data available for any of the missing days, offer automatic conversion
+                    # If some missing days do not have VCOM locally, ask to download them
+                    if vcom_downloadable:
+                        download_list = ", ".join(sorted(vcom_downloadable, key=lambda x: int(x)))
+                        dl_approved = self._ask_yes_no_on_gui(
+                            "Dati mancanti - Download VCOM",
+                            f"I file SCADA e VCOM per i seguenti giorni sono mancanti:\n\n"
+                            f"   • Giorni da scaricare: {download_list}\n\n"
+                            "Vuoi avviare il download automatico dei dati VCOM da meteocontrol?"
+                        )
+                        if dl_approved:
+                            print("[VCOM-Downloader] Avvio download dati VCOM mancanti...")
+                            for d_str in vcom_downloadable:
+                                d_path = os.path.join(folder, d_str)
+                                vcom_dir = os.path.join(d_path, "vcom")
+                                target_date_str = f"{year_val:04d}-{month_val:02d}-{int(d_str):02d}"
+                                print(f"[VCOM-Downloader] Download in corso per il Giorno {d_str} ({target_date_str})...")
+                                success = self._download_vcom_data(target_date_str, vcom_dir)
+                                if success:
+                                    vcom_convertible[d_str] = vcom_dir
+                                else:
+                                    print(f"[VCOM-Downloader] Download fallito per il Giorno {d_str}")
+
+                    # If we have VCOM data available (either pre-existing or just downloaded), offer automatic conversion
                     if vcom_convertible:
                         convert_list = ", ".join(sorted(vcom_convertible.keys(), key=lambda x: int(x)))
                         non_vcom = [d for d in bypassed_days if d not in vcom_convertible]
                         
-                        msg = "I file SCADA per alcuni giorni sono mancanti/incompleti, ma i dati VCOM sono stati rilevati:\n\n"
+                        msg = "I file SCADA per alcuni giorni sono mancanti/incompleti, ma i dati VCOM sono stati rilevati o scaricati:\n\n"
                         msg += f"   • Giorni con VCOM pronti: {convert_list}\n\n"
                         if non_vcom:
-                            msg += f"NOTA: Per i giorni {', '.join(sorted(non_vcom, key=lambda x: int(x)))}, i dati VCOM non sono stati trovati.\n\n"
+                            msg += f"NOTA: Per i giorni {', '.join(sorted(non_vcom, key=lambda x: int(x)))}, i dati VCOM non sono disponibili.\n\n"
                         msg += "Vuoi convertire automaticamente i dati VCOM per calcolare il PR?"
                         
                         convert_approved = self._ask_yes_no_on_gui(
@@ -2471,10 +2664,26 @@ class PRCalculatorGUI:
                 miss = self._missing_files_for_day(folder)
                 if miss:
                     vcom_dir = self._find_vcom_folder_for_day(folder)
+                    if not vcom_dir:
+                        # VCOM is not present locally, ask to download it!
+                        dl_approved = self._ask_yes_no_on_gui(
+                            "Dati SCADA e VCOM mancanti",
+                            f"I file SCADA e VCOM per il giorno selezionato ({date_str}) sono mancanti.\n\n"
+                            "Vuoi avviare il download automatico dei dati VCOM da meteocontrol?"
+                        )
+                        if dl_approved:
+                            vcom_dir = os.path.join(folder, "vcom")
+                            print(f"[VCOM-Downloader] Download in corso per il Giorno Singolo ({date_str})...")
+                            success = self._download_vcom_data(date_str, vcom_dir)
+                            if not success:
+                                raise RuntimeError(f"Download dati VCOM fallito per la data {date_str}.")
+                        else:
+                            raise RuntimeError(f"Calcolo annullato. File SCADA/VCOM mancanti per la data {date_str}.")
+                    
                     if vcom_dir:
                         convert_approved = self._ask_yes_no_on_gui(
                             "Dati SCADA mancanti - VCOM Rilevato",
-                            f"I file SCADA per il giorno selezionato sono incompleti, ma i dati VCOM sono stati rilevati nella cartella:\n\n{vcom_dir}\n\nVuoi convertire automaticamente i dati VCOM per questo giorno e procedere con il calcolo?"
+                            f"I file SCADA per il giorno selezionato sono incompleti, ma i dati VCOM sono stati rilevati o scaricati nella cartella:\n\n{vcom_dir}\n\nVuoi convertire automaticamente i dati VCOM per questo giorno e procedere con il calcolo?"
                         )
                         if convert_approved:
                             print(f"[VCOM-Pre-calcolo] Generazione dati pseudo-SCADA per il Giorno Singolo ({date_str})...")
@@ -2484,11 +2693,6 @@ class PRCalculatorGUI:
                                 raise RuntimeError(f"Errore nella conversione VCOM: {conv_err}")
                         else:
                             raise RuntimeError(f"Calcolo annullato. File SCADA mancanti: {', '.join(miss)}")
-                    else:
-                        raise RuntimeError(
-                            f"File SCADA mancanti per la data selezionata: {', '.join(miss)}.\n\n"
-                            "Per calcolare il PR usando i dati VCOM, scarica i file CSV di VCOM all'interno della cartella 'vcom/' del giorno."
-                        )
 
                 df_res, calc_res = self.calculate_single_day(folder, date_str, pvsyst_pr, threshold, diff_threshold, poa_method=poa_method)
                 
