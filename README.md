@@ -1,11 +1,12 @@
 # PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v12.0)
 
-> **Document generated:** 2026-05-15 · **Last updated:** 2026-07-24
+> **Document generated:** 2026-05-15 · **Last updated:** 2026-08-07
 
-A professional, high-performance toolkit for the **GET S.R.L.** Mazara 01 photovoltaic plant. It has two components:
+A professional, high-performance toolkit for the **GET S.R.L.** Mazara 01 photovoltaic plant. It has three components:
 
 1. **PR Calculator (`PR_Calculator_GUI_v12.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
 2. **PR Dashboard (`pr_dashboard/`)** — a local FastAPI + React web app that reads the generated Excel reports into a SQLite cache and visualises PR, energy, losses and per-inverter performance across year / month / day views.
+3. **Data Completeness Checker (`Data_Completeness_Checker.py`)** — a small desktop app that audits the source archives *before* a calculation, reporting every day that is missing data in the Daily Reports (SCADA) or in the Tracker report.
 
 ![PR Calculation & Dashboard Pipeline](assets/flow_diagram.png)
 
@@ -64,6 +65,7 @@ pip install pandas numpy openpyxl pywin32 Pillow
 .
 ├── PR_Calculator_GUI_v12.py     # Current calculator (Tkinter desktop app)
 ├── VCOM_to_SCADA.py             # Converts 5-min VCOM CSVs -> 15-min pseudo-SCADA workbooks
+├── Data_Completeness_Checker.py # Audits Daily Reports + Tracker archives for missing data
 ├── start_dashboard.py           # One-command launcher for the web dashboard
 ├── pr_dashboard/                # PR Dashboard web app
 │   ├── backend/                 # FastAPI API + SQLite cache + Excel parser
@@ -95,6 +97,34 @@ pip install pandas numpy openpyxl pywin32 Pillow
    - Select a parent folder containing subfolders named by day (e.g., `01`, `02`, `03` ... `31`).
    - Check **"Ricalcola forzatamente i giorni già elaborati"** to overwrite existing daily workbooks.
    - The tool will iterate through every day, generate individual child workbooks, and sync them to the monthly Mother file.
+
+---
+
+## 🔍 Data Completeness Checker (v2.0)
+
+`Data_Completeness_Checker.py` (compiled as **`Verifica Completezza Dati.exe`**) answers one question before you start a calculation: *which days are not complete?* A single run audits **both** source archives for the selected period.
+
+```bash
+python Data_Completeness_Checker.py            # GUI
+python Data_Completeness_Checker.py --selftest # assertions only, no window
+```
+
+**Inputs (both editable, both remembered per run):**
+
+| Field | Default | Notes |
+|---|---|---|
+| **Daily Reports** | `…\03 - REPORT\Report\01 Daily Reports` | Month folders `YYYY MM`, day subfolders `DD`. |
+| **Tracker** | `…\04 Tracker report\01_Original_files\YYYY\MM` | The **month folder** itself, defaulted to the latest available and re-pointed automatically when you change the month. |
+| **Mese / Giorno** | latest month, `Tutto il mese` | The day list holds only the days actually present in either archive. |
+
+**Daily Reports (SCADA) checks** — per day, per required file: file present; the dates *inside* it match the day (a file from the wrong day is reported as such, not as 96 empty slots); all **96 15-minute slots** carry a value; all **12 inverters** are present; the 5-minute `Regolazione_della_potenza_attiva_*.xlsx` covers the full 24 h.
+
+**Tracker checks** — per day: **24 hourly files** present (a DST file such as `01_03` correctly counts as covering both 01 and 02), no duplicate hour (`.csv` + `.TXT` pair), the date in the filename matches the folder, and no file far smaller than its siblings (truncated export). Then, inside each file: the **first row is `HH:00`**, all **60 minutes** of the hour are present, a mid-file sample stays inside the hour, and the **last row is `HH+1:00`** (rolling into the next day for `23_00`).
+
+> [!NOTE]
+> Tracker files are ~550 MB each. The checker never reads one whole: it reads three ~96 KB windows per file (head, middle, tail), which keeps a full day at ~7 s and a whole month at a few minutes.
+
+Results are listed per day with a **Fonte** column (`SCADA` / `Tracker`); **Esporta CSV** saves the same table as a `;`-separated report.
 
 ---
 
@@ -209,6 +239,12 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 
 ## Changelog
 
+### Data Completeness Checker 2.0 (2026-08-07)
+- **New Component/Feature — Tracker verification**: A single run now audits both archives for the selected month or day. For the tracker, a day must hold 24 hourly files whose contents match their name — first row `HH:00`, all 60 minutes present, mid-file sample inside the hour, last row `HH+1:00` — plus checks for duplicate hours (`.csv` + `.TXT`), wrong dates in filenames, truncated exports and DST days (an `01_03` file covers hours 01 and 02).
+- **New Feature — Month/day scope**: The tracker month folder is a separate editable path (defaulting to the latest `YYYY\MM`) that follows the selected month; the day picker offers the whole month or one of the days actually present.
+- **Performance**: Tracker files are ~550 MB each, so only three ~96 KB windows per file are read (~7 s per day) instead of the full file.
+- **UI**: Results gained a `Fonte` column (SCADA / Tracker), carried into the CSV export.
+
 ### v12.0 (2026-07-24)
 - **New Feature — VCOM Fallback Pipeline**: Days missing SCADA exports are recovered from the meteocontrol VCOM portal. The app detects a per-day `vcom/`(or `VCOM/`) folder with `Potenza_AC_*.csv` + `Produzione_energetica_*.csv`, offers an automated Playwright download when absent, and converts the 5-minute exports into 15-minute pseudo-SCADA workbooks via `VCOM_to_SCADA.py` (SATAC meter, TS_01/03 weather POA, TS_01/02/03 inverters).
 - **New Feature — Safe Stop**: `Interrompi (arresto sicuro)` button sets a cancellation flag polled at safe checkpoints (between days, between VCOM downloads/conversions). The in-flight day completes and is saved before halting; the Mother file is still synced for completed days.
@@ -252,6 +288,14 @@ pyinstaller --noconfirm "\\S01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 T
 ```
 
 This will produce the compiled standalone **`PR Calculator v12.exe`** under the main folder.
+
+The completeness checker has its own spec:
+
+```powershell
+pyinstaller --noconfirm "Data_Completeness_Checker.spec"
+```
+
+which produces **`Verifica Completezza Dati.exe`** in `dist/` (copy it next to the calculator to deploy).
 
 > **Note (v12.0):** the VCOM download uses Playwright. The bundled `.exe` does **not** ship the browsers — it reads them from the per-user cache via `PLAYWRIGHT_BROWSERS_PATH` (`%LOCALAPPDATA%\ms-playwright`). On a machine that has never run Playwright, install them once with `playwright install chromium`. **Rebuild the executable after these changes**, otherwise the old `.exe` keeps the previous headless/browser-path behaviour.
 
