@@ -1,6 +1,6 @@
 # 📘 Manuale Utente & Guida Operativa - PR Calculator (GET SRL)
 
-> **Documento generato:** 2026-05-15 · **Ultimo aggiornamento:** 2026-07-24 (v12.0)
+> **Documento generato:** 2026-05-15 · **Ultimo aggiornamento:** 2026-08-07 (v12.0 · Verifica Completezza Dati v2.0)
 
 > [!IMPORTANT]
 > **Azienda:** GET SRL  
@@ -130,6 +130,36 @@ Questa formula viene poi sincronizzata nel file **Madre** mensile:
 
 ---
 
+## 🔍 Verifica Completezza Dati v2.0 (programma separato)
+
+Prima di lanciare un calcolo conviene sapere **quali giorni non sono completi**. Il programma `Verifica Completezza Dati.exe` (sorgente `Data_Completeness_Checker.py`) controlla in una sola analisi **entrambi gli archivi**: i Daily Reports (SCADA) e il Tracker report.
+
+### Come si usa
+
+1. **Daily Reports:** cartella principale con i mesi `YYYY MM` (default `…\01 Daily Reports`).
+2. **Tracker:** cartella **del mese** del tracker, cioè `…\04 Tracker report\01_Original_files\YYYY\MM`. Viene proposta automaticamente l'ultima disponibile e si aggiorna da sola quando si cambia mese; resta comunque modificabile a mano o con **Sfoglia...**.
+3. **Mese** e **Giorno**: si può analizzare `Tutto il mese` oppure un singolo giorno. L'elenco dei giorni contiene **solo i giorni realmente presenti** in almeno uno dei due archivi.
+4. **Analizza**: ogni problema viene elencato con giorno, **Fonte** (`SCADA` o `Tracker`), file e descrizione. **Esporta CSV** salva la stessa tabella.
+
+### Cosa controlla sui Daily Reports (SCADA)
+
+- Presenza dei file richiesti dal PR Calculator (contatore SATAC, meteo TS1/TS3, inverter TS1/TS2/TS3, regolazione potenza attiva).
+- Che le **date scritte dentro al file** corrispondano al giorno: un file del giorno sbagliato viene segnalato come tale, non come 96 intervalli vuoti.
+- Tutti i **96 intervalli da 15 minuti** valorizzati e tutti i **12 inverter** presenti.
+- Copertura delle 24 h nel file di regolazione della potenza attiva (griglia a 5 minuti).
+
+### Cosa controlla sul Tracker
+
+- **24 file orari** per giorno. Un file che copre due ore (es. `01_03` nel giorno del cambio ora legale) vale per entrambe le ore, quindi il giorno non risulta incompleto.
+- Nessuna **ora duplicata** (stesso orario presente sia in `.csv` sia in `.TXT`) e data nel nome file uguale alla cartella del giorno.
+- Nessun file **molto più piccolo degli altri** (export troncato).
+- Dentro ogni file: prima riga alle **`HH:00`**, tutti i **60 minuti** dell'ora presenti, un campione a metà file dentro l'intervallo e ultima riga alle **`HH+1:00`** (il file `23_00` termina alle `00:00` del giorno successivo).
+
+> [!NOTE]
+> I file del tracker pesano circa 550 MB ciascuno: il programma non li legge mai per intero, ma solo tre finestre da ~96 KB (inizio, metà, fine). Un giorno richiede circa 7 secondi, un mese intero pochi minuti.
+
+---
+
 ## 🛠️ Guida alla Risoluzione dei Problemi (Troubleshooting per Junior)
 
 > [!WARNING]
@@ -142,4 +172,6 @@ Questa formula viene poi sincronizzata nel file **Madre** mensile:
 > - **"BrowserType.launch: Executable doesn't exist ...\Temp\_MEIxxxxx\..." (v12):** Si verifica solo con l'eseguibile compilato: la versione impacchettata cercava i browser Playwright nella cartella temporanea di PyInstaller anziché in quella utente. Risolto impostando automaticamente `PLAYWRIGHT_BROWSERS_PATH` su `%LOCALAPPDATA%\ms-playwright`. Se compare ancora, i browser non sono installati: eseguire `playwright install chromium`.
 > - **L'elaborazione non si ferma subito dopo [ Interrompi ] (v12):** È il comportamento previsto. L'arresto è *sicuro*: il giorno in corso viene completato e salvato prima di fermarsi, per non lasciare file Excel scritti a metà. L'attesa massima corrisponde al tempo di un singolo giorno (o di un singolo download VCOM).
 > - **Un giorno con dati VCOM resta "incompleto" (v12):** La conversione VCOM genera 6 dei 7 file richiesti. Verificare che sia presente anche `Regolazione_della_potenza_attiva_*.xlsx`, che va scaricato con l'estrattore della potenza attiva.
+> - **"cartella del giorno assente" nella Verifica Completezza (v2):** Il giorno esiste in un solo archivio. La riga indica quale dei due manca (`SCADA` o `Tracker`): la cartella va creata e i dati scaricati prima del calcolo.
+> - **"mancano N/24 ore" sul Tracker (v2):** Nella cartella del giorno non ci sono tutti i file orari. Le ore elencate vanno riscaricate; attenzione ai file con nome corretto ma dati di un'altra ora, segnalati a parte come *"inizia alle ..."* / *"finisce alle ..."*.
 
