@@ -462,6 +462,22 @@
                         <div class="card-desc">Avvia il motore di calcolo in background: filtra e pulisce i dati numerici, calcola le perdite per indisponibilità, genera i file giornalieri e aggiorna in tempo reale il file Madre mensile tramite OLE/COM.</div>
                     </div>
 
+                    <div class="callout-card">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #d93025;">■</div>
+                            <div class="card-title">Pulsante [ Interrompi (arresto sicuro) ] <span style="font-size:0.8rem; color: var(--text-muted);">v12.0</span></div>
+                        </div>
+                        <div class="card-desc">Attivo solo durante l'elaborazione. <strong>Non</strong> interrompe il lavoro a metà: imposta una richiesta di arresto che il motore verifica ai punti di controllo sicuri (fra un giorno e l'altro, fra un download VCOM e il successivo). Il giorno in corso viene <strong>completato e salvato</strong>, poi l'esecuzione si ferma nel minor tempo possibile. Il file Madre viene comunque sincronizzato per i giorni già elaborati, così i dati restano coerenti.</div>
+                    </div>
+
+                    <div class="callout-card">
+                        <div class="callout-header">
+                            <div class="badge" style="background: #0f9d58;">VC</div>
+                            <div class="card-title">Dati VCOM automatici per i giorni mancanti <span style="font-size:0.8rem; color: var(--text-muted);">v12.0</span></div>
+                        </div>
+                        <div class="card-desc">Se in modalità batch mancano file SCADA, il software cerca una sottocartella <code>vcom/</code> nel giorno con <code>Potenza_AC_*.csv</code> e <code>Produzione_energetica_*.csv</code>; se non c'è, propone di scaricarli dal portale meteocontrol VCOM con browser automatizzato <strong>visibile</strong>. I due CSV a 5 minuti vengono poi convertiti in file pseudo-SCADA a 15 minuti e il PR viene calcolato normalmente. <strong>Nota:</strong> la conversione genera 6 dei 7 file richiesti — <code>Regolazione_della_potenza_attiva_*.xlsx</code> va scaricato separatamente.</div>
+                    </div>
+
                     <div class="callout-card" onclick="highlightBadge(6, this)">
                         <div class="callout-header">
                             <div class="badge" style="background: #2196f3;">6</div>
@@ -736,6 +752,36 @@
             <p style="color: var(--text-muted);">Soluzioni immediate alle casistiche e anomalie più comuni riscontrate sui file SCADA.</p>
 
             <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>★ (v12) "BrowserType.launch: Executable doesn't exist ...\Temp\_MEIxxxxx\..."</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        Si verifica <strong>solo con l'eseguibile compilato</strong>. La versione impacchettata con PyInstaller cercava i browser Playwright nella propria cartella temporanea <code>_MEIxxxxx</code> anziché in quella utente, dove sono realmente installati. Risolto: il software imposta ora automaticamente <code>PLAYWRIGHT_BROWSERS_PATH</code> su <code>%LOCALAPPDATA%\ms-playwright</code>. Se l'errore persiste, i browser non sono mai stati installati: eseguire una volta <code>playwright install chromium</code>. Nota: il browser di estrazione viene aperto in modalità <strong>visibile</strong>, così è possibile seguire cosa sta facendo.
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>★ (v12) Ho premuto [ Interrompi ] ma l'elaborazione non si ferma subito</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        È il comportamento previsto: l'arresto è <strong>sicuro</strong>. Interrompere Excel a metà scrittura lascerebbe file giornalieri corrotti, quindi il motore completa e salva il giorno in corso, poi si ferma al primo punto di controllo utile. L'attesa massima corrisponde al tempo di elaborazione di un singolo giorno (o di un singolo download VCOM). Al termine il file Madre viene comunque sincronizzato per i giorni già completati e lo stato riporta <em>"Elaborazione interrotta dall'utente. Completati: N giorni"</em>.
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>★ (v12) Un giorno con dati VCOM risulta ancora "incompleto"</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        La conversione VCOM genera <strong>6 dei 7</strong> file richiesti: <code>SATAC_Meter_15Min</code>, <code>TS_01/03_Weather_15Min</code> e <code>TS_01/02/03_Inverter_15Min</code>. Il settimo, <code>Regolazione_della_potenza_attiva_*.xlsx</code>, non deriva dai dati VCOM di produzione e va scaricato separatamente con l'estrattore della potenza attiva. Verificare inoltre che la cartella <code>vcom/</code> del giorno contenga entrambi i CSV (<code>Potenza_AC_*.csv</code> e <code>Produzione_energetica_*.csv</code>).
+                    </div>
+                </div>
+
                 <div class="accordion-item">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
                         <span>1. Perché compare l'errore "#DIV/0!" in alcune celle dei file Excel giornalieri?</span>
