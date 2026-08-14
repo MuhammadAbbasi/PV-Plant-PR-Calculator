@@ -1,19 +1,24 @@
-# PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v11.0)
+# PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v12.0)
 
-> **Document generated:** 2026-05-15 · **Last updated:** 2026-07-09
+> **Document generated:** 2026-05-15 · **Last updated:** 2026-07-24
 
 A professional, high-performance toolkit for the **GET S.R.L.** Mazara 01 photovoltaic plant. It has two components:
 
-1. **PR Calculator (`PR_Calculator_GUI_v11.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
+1. **PR Calculator (`PR_Calculator_GUI_v12.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
 2. **PR Dashboard (`pr_dashboard/`)** — a local FastAPI + React web app that reads the generated Excel reports into a SQLite cache and visualises PR, energy, losses and per-inverter performance across year / month / day views.
 
 ![PR Calculation & Dashboard Pipeline](assets/flow_diagram.png)
 
 ## Features
 
-- **Selectable POA Reference (v11.0)**: A GUI toggle chooses how the plane-of-array irradiance that drives every PR is derived from the two pyranometers (TX1/TX3):
-    - **Conditional MAX** (conservative, default): uses the higher sensor when the two diverge beyond the user tolerance (protects against soiling-inflated PR).
-    - **Media (Average)**: the standard IEC two-sensor arithmetic mean.
+- **VCOM Fallback for Missing SCADA (v12.0)**: When a day lacks its SCADA exports, the app looks for a per-day `vcom/` folder holding `Potenza_AC_*.csv` + `Produzione_energetica_*.csv`. If absent, it offers to download them from the meteocontrol VCOM portal via Playwright (**headed browser**, so the extraction is visible), then converts the 5-minute VCOM exports into 15-minute pseudo-SCADA workbooks (`VCOM_to_SCADA.py`) and calculates the PR normally.
+    - Conversion produces **6 of the 7** required files; `Regolazione_della_potenza_attiva_*.xlsx` still comes from the separate active-power extractor.
+    - Frozen builds set `PLAYWRIGHT_BROWSERS_PATH` to `%LOCALAPPDATA%\ms-playwright`, fixing the PyInstaller `_MEIxxxxx` browser-not-found error.
+- **Safe Stop (v12.0)**: An **Interrompi (arresto sicuro)** button requests cancellation instead of killing the run. The worker polls the flag at safe checkpoints (between days, between VCOM downloads/conversions), so the in-flight day finishes and is saved before halting; the Mother file is still synced for completed days, leaving output consistent.
+- **Degradation-Adjusted Target Column (v12.0)**: The PVSyst reference table shows a **Target Corretto** column with the contractual 0.4%/year degraded target (Allegato 9.1, compounding from the Feb-2025 start, contract year running Feb–Jan), auto-recomputed for the selected date's year.
+- **Selectable POA Reference (v11.0, default changed in v12.0)**: A themed segmented toggle chooses how the plane-of-array irradiance that drives every PR is derived from the two pyranometers (TX1/TX3):
+    - **Media (Average)** — *default since v12.0*: the standard IEC two-sensor arithmetic mean. The differential-tolerance field is disabled in this mode.
+    - **Conditional MAX** (conservative): uses the higher sensor when the two diverge beyond the user tolerance (protects against soiling-inflated PR).
     Both apply the minimum-irradiance gate and flow consistently into every PR figure (per-inverter, `BA5`, `BH11`).
 - **Meter Gap & Anomaly Repair (v11.0)**: Missing, zero, or backwards (negative-delta) SATAC meter readings are detected and interpolated from the nearest valid neighbours; repaired cells are highlighted in orange with an explanatory note in the daily file.
 - **Locked-File Recovery (v11.0)**: If a daily or Mother workbook is open in another Excel window, the tool prompts for confirmation and force-closes it (via the Running Object Table) instead of failing.
@@ -57,7 +62,8 @@ pip install pandas numpy openpyxl pywin32 Pillow
 
 ```
 .
-├── PR_Calculator_GUI_v11.py     # Current calculator (Tkinter desktop app)
+├── PR_Calculator_GUI_v12.py     # Current calculator (Tkinter desktop app)
+├── VCOM_to_SCADA.py             # Converts 5-min VCOM CSVs -> 15-min pseudo-SCADA workbooks
 ├── start_dashboard.py           # One-command launcher for the web dashboard
 ├── pr_dashboard/                # PR Dashboard web app
 │   ├── backend/                 # FastAPI API + SQLite cache + Excel parser
@@ -73,11 +79,11 @@ pip install pandas numpy openpyxl pywin32 Pillow
 1. **Launch the Application**:
    Run the GUI using Python:
    ```bash
-   python PR_Calculator_GUI_v11.py
+   python PR_Calculator_GUI_v12.py
    ```
    Or run the compiled executable:
    ```bash
-   "PR Calculator v11.exe"
+   "PR Calculator v12.exe"
    ```
 
 2. **Single Day Processing**:
@@ -203,6 +209,14 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 
 ## Changelog
 
+### v12.0 (2026-07-24)
+- **New Feature — VCOM Fallback Pipeline**: Days missing SCADA exports are recovered from the meteocontrol VCOM portal. The app detects a per-day `vcom/`(or `VCOM/`) folder with `Potenza_AC_*.csv` + `Produzione_energetica_*.csv`, offers an automated Playwright download when absent, and converts the 5-minute exports into 15-minute pseudo-SCADA workbooks via `VCOM_to_SCADA.py` (SATAC meter, TS_01/03 weather POA, TS_01/02/03 inverters).
+- **New Feature — Safe Stop**: `Interrompi (arresto sicuro)` button sets a cancellation flag polled at safe checkpoints (between days, between VCOM downloads/conversions). The in-flight day completes and is saved before halting; the Mother file is still synced for completed days.
+- **New Feature — Degradation-Adjusted Target column**: The PVSyst reference table gained a `Target Corretto` column showing the 0.4%/year contractually degraded target (Allegato 9.1), recomputed for the selected date's year.
+- **Change — POA default is now `Media (Average)`** (IEC two-sensor mean); the differential-tolerance field auto-disables in this mode. The POA selector is now a themed segmented control with the active choice filled in accent blue.
+- **Bug fix — Playwright in frozen builds**: The compiled `.exe` resolved Playwright's browser path to the PyInstaller `_MEIxxxxx` temp dir and failed with *"Executable doesn't exist"*. `PLAYWRIGHT_BROWSERS_PATH` is now pointed at `%LOCALAPPDATA%\ms-playwright`. The extraction browser also runs **headed** so progress is visible.
+- **UI fix — Layout**: The top grid was rebalanced to an equal split (was 4:5). The 4th PVSyst column had squeezed the left card, clipping the *"Ricalcola forzatamente…"* checkbox and the main button label. Descriptive/hint/status labels now wrap to the card width instead of clipping.
+
 ### PR Dashboard 1.0 (2026-07-09)
 - **New Component — PR Dashboard**: Added `pr_dashboard/`, a local FastAPI + React/Vite web app that reads the generated Mother/daily Excel reports into a SQLite cache and visualises PR, energy, losses and per-inverter performance across Year / Month / Day views. Launch with `python start_dashboard.py`.
 
@@ -234,10 +248,12 @@ Must contain a **`PR_Calc`** sheet structured as follows:
 To bundle the application into a standalone Windows executable:
 
 ```powershell
-pyinstaller --noconfirm "\\S01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\PR Calculation automation\PR Calculator v11.spec"
+pyinstaller --noconfirm "\\S01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\PR Calculation automation\PR Calculator v12.spec"
 ```
 
-This will produce the compiled standalone **`PR Calculator v11.exe`** under the main folder.
+This will produce the compiled standalone **`PR Calculator v12.exe`** under the main folder.
+
+> **Note (v12.0):** the VCOM download uses Playwright. The bundled `.exe` does **not** ship the browsers — it reads them from the per-user cache via `PLAYWRIGHT_BROWSERS_PATH` (`%LOCALAPPDATA%\ms-playwright`). On a machine that has never run Playwright, install them once with `playwright install chromium`. **Rebuild the executable after these changes**, otherwise the old `.exe` keeps the previous headless/browser-path behaviour.
 
 ---
 
