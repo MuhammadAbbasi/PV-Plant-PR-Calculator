@@ -407,6 +407,7 @@
             <button class="tab-btn" onclick="switchTab('parametri')">⚙️ Parametri Calcolo</button>
             <button class="tab-btn" onclick="switchTab('cruscotto')">📊 Target PVSyst</button>
             <button class="tab-btn" onclick="switchTab('inverter')">📑 Dettaglio Inverter</button>
+            <button class="tab-btn" onclick="switchTab('completezza')">🔍 Verifica Completezza</button>
             <button class="tab-btn" onclick="switchTab('faq')">🛠️ Troubleshooting & FAQ</button>
         </div>
     </header>
@@ -746,7 +747,75 @@
             </div>
         </div>
 
-        <!-- TAB 5: FAQ & TROUBLESHOOTING -->
+        <!-- TAB 5: VERIFICA COMPLETEZZA DATI -->
+        <div id="tab-completezza" class="tab-content">
+            <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem;">🔍 Verifica Completezza Dati (v2.0)</h1>
+            <p style="color: var(--text-muted);">Programma separato (<code>Verifica Completezza Dati.exe</code>) che risponde a una sola domanda prima del calcolo: <strong>quali giorni non sono completi?</strong> Una singola analisi controlla entrambi gli archivi, Daily Reports (SCADA) e Tracker report.</p>
+
+            <div style="margin: 0.5rem 0 1.25rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-left: 4px solid var(--border-hover); border-radius: 10px; padding: 1rem 1.25rem;">
+                <strong style="color: var(--border-hover);">⚡ Perché è veloce</strong>
+                <p style="margin: 0.5rem 0 0; color: var(--text-main);">I file del tracker pesano circa <strong>550 MB ciascuno</strong>. Il programma non ne legge mai uno per intero: apre solo tre finestre da ~96 KB (inizio, metà, fine) per file. Un giorno richiede circa <strong>7 secondi</strong>, un mese intero pochi minuti.</p>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Campo</th>
+                            <th>Valore predefinito</th>
+                            <th>Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Daily Reports</td>
+                            <td><code>…\03 - REPORT\Report\01 Daily Reports</code></td>
+                            <td>Cartella principale con i mesi <code>YYYY MM</code> e le sottocartelle giorno <code>DD</code>.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Tracker</td>
+                            <td><code>…\04 Tracker report\01_Original_files\YYYY\MM</code></td>
+                            <td>È la cartella <strong>del mese</strong>. Viene proposta l'ultima disponibile e si aggiorna da sola quando si cambia mese; resta modificabile a mano o con <em>Sfoglia...</em>.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Mese / Giorno</td>
+                            <td>Ultimo mese · <code>Tutto il mese</code></td>
+                            <td>Si analizza l'intero mese o un singolo giorno. L'elenco contiene <strong>solo i giorni realmente presenti</strong> in almeno uno dei due archivi.</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold; color: var(--text-main);">Risultati</td>
+                            <td>Tabella + <em>Esporta CSV</em></td>
+                            <td>Ogni problema riporta giorno, <strong>Fonte</strong> (<code>SCADA</code> o <code>Tracker</code>), file e descrizione.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="accordion" style="margin-top: 1.5rem;">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>Controlli sui Daily Reports (SCADA)</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        Presenza dei file richiesti dal PR Calculator (contatore SATAC, meteo TS1/TS3, inverter TS1/TS2/TS3, regolazione della potenza attiva); corrispondenza fra le <strong>date scritte dentro al file</strong> e il giorno analizzato (un file del giorno sbagliato viene segnalato come tale, non come 96 intervalli vuoti); tutti i <strong>96 intervalli da 15 minuti</strong> valorizzati; tutti i <strong>12 inverter</strong> presenti; copertura delle 24 h nel file di regolazione della potenza attiva (griglia a 5 minuti).
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>Controlli sul Tracker (24 file orari)</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        Per ogni giorno: <strong>24 file orari</strong> presenti (un file che copre due ore, come <code>01_03</code> nel giorno del cambio ora legale, vale per entrambe le ore); nessuna <strong>ora duplicata</strong> (stesso orario sia in <code>.csv</code> sia in <code>.TXT</code>); data del nome file uguale alla cartella del giorno; nessun file molto più piccolo degli altri (export troncato).<br><br>
+                        Dentro ogni file: prima riga alle <strong><code>HH:00</code></strong>, tutti i <strong>60 minuti</strong> dell'ora presenti, un campione a metà file dentro l'intervallo e ultima riga alle <strong><code>HH+1:00</code></strong> (il file <code>23_00</code> termina alle <code>00:00</code> del giorno successivo).
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: FAQ & TROUBLESHOOTING -->
         <div id="tab-faq" class="tab-content">
             <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem;">🛠️ Troubleshooting & FAQ per Ingegneri Junior</h1>
             <p style="color: var(--text-muted);">Soluzioni immediate alle casistiche e anomalie più comuni riscontrate sui file SCADA.</p>
@@ -779,6 +848,17 @@
                     </div>
                     <div class="accordion-content">
                         La conversione VCOM genera <strong>6 dei 7</strong> file richiesti: <code>SATAC_Meter_15Min</code>, <code>TS_01/03_Weather_15Min</code> e <code>TS_01/02/03_Inverter_15Min</code>. Il settimo, <code>Regolazione_della_potenza_attiva_*.xlsx</code>, non deriva dai dati VCOM di produzione e va scaricato separatamente con l'estrattore della potenza attiva. Verificare inoltre che la cartella <code>vcom/</code> del giorno contenga entrambi i CSV (<code>Potenza_AC_*.csv</code> e <code>Produzione_energetica_*.csv</code>).
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>★ (Verifica v2) "cartella del giorno assente" oppure "mancano N/24 ore"</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <strong>"cartella del giorno assente"</strong>: il giorno esiste in un solo archivio; la colonna <em>Fonte</em> indica quale dei due manca (<code>SCADA</code> o <code>Tracker</code>).<br><br>
+                        <strong>"mancano N/24 ore"</strong>: nella cartella del giorno del tracker non ci sono tutti i file orari; le ore elencate vanno riscaricate. Attenzione ai file con nome corretto ma contenuto di un'altra ora: vengono segnalati a parte come <em>"inizia alle ..."</em> / <em>"finisce alle ..."</em>.
                     </div>
                 </div>
 
