@@ -28,6 +28,9 @@ scratch/
 # Automatic mother-file backups created at runtime
 _backups/
 
+# Per-user GUI settings written next to the app (v13)
+PR_Calculator_settings.json
+
 # Manual backup copies and working screenshots
 * backup.*
 *backup*.py

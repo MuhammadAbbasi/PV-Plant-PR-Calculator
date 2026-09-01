@@ -1,10 +1,20 @@
-# PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v12.0)
+# PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v14.0)
+
+## Novità Versione 14.0 (2026-09-01)
+- **Modalità Dati VCOM (Singolo Giorno e Mese Misto)**:
+  - **Sostituzione dati SCADA con VCOM**: Possibilità di calcolare il Performance Ratio direttamente dai file export VCOM (`Potenza_AC_*.csv`, `Potenza_attiva_*.csv`, `Produzione_energetica_*.csv`, `Energia_*.csv`) per i giorni con dati SCADA assenti o corrotti.
+  - **Esecuzione Mese Misto (SCADA + VCOM)**: Permette di elaborare un mese intero combinando giorni SCADA e giorni VCOM (es. Giorno 1 SCADA, Giorno 2 SCADA, Giorno 3 VCOM, Giorno 4 SCADA...).
+  - **Generazione completa 7/7 pseudo-SCADA**: Genera automaticamente tutti i file (`TS_01/03 Weather`, `TS_01/02/03 Inverter`, `SATAC Meter`, `Regolazione potenza attiva`).
+  - **Finestra di Selezione Giorni VCOM**: Dialog interattivo con 31 caselle di controllo e funzione "Rileva cartelle vcom/" automatica.
+- **Pulsanti dedicati "Sync SCADA PR" e "Sync VCOM PR"**: Permettono di localizzare istantaneamente i report PR esterni (`KPI_Report_Daily.xls*` e `Performance_ratio*.csv` / `Performance_ratio_vcom.csv`) e aggiornare direttamente le rispettive colonne nel file Madre (`00 PR_recalculation_{MESE}.xlsx`) senza dover rieseguire il calcolo dell'intero mese.
+- **Pattern matching esteso**: Riconoscimento automatico dei file esportati con timestamp (es. `Performance_ratio_2026_07_31.csv`).
+- **Salvataggio protetto**: Gestione robusta dei lock di Excel, backup automatici e ricalcolo formule.
 
 > **Document generated:** 2026-05-15 · **Last updated:** 2026-08-07
 
 A professional, high-performance toolkit for the **GET S.R.L.** Mazara 01 photovoltaic plant. It has three components:
 
-1. **PR Calculator (`PR_Calculator_GUI_v12.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
+1. **PR Calculator (`PR_Calculator_GUI_v14.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
 2. **PR Dashboard (`pr_dashboard/`)** — a local FastAPI + React web app that reads the generated Excel reports into a SQLite cache and visualises PR, energy, losses and per-inverter performance across year / month / day views.
 3. **Data Completeness Checker (`Data_Completeness_Checker.py`)** — a small desktop app that audits the source archives *before* a calculation, reporting every day that is missing data in the Daily Reports (SCADA) or in the Tracker report.
 

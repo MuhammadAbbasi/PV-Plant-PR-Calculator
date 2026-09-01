@@ -1,6 +1,6 @@
 # 📘 Manuale Utente & Guida Operativa - PR Calculator (GET SRL)
 
-> **Documento generato:** 2026-05-15 · **Ultimo aggiornamento:** 2026-08-07 (v12.0 · Verifica Completezza Dati v2.0)
+> **Documento generato:** 2026-05-15 · **Ultimo aggiornamento:** 2026-08-07 (v14.0 · Verifica Completezza Dati v2.0)
 
 > [!IMPORTANT]
 > **Azienda:** GET SRL  
@@ -38,7 +38,7 @@ L'interfaccia è stata progettata con un design chiaro moderno, pulito ed elegan
 | **PR Mensile PVSyst** | Obiettivo mensile di Performance Ratio teorico, rilevato e compilato automaticamente dalla tabella di riferimento quando viene aggiornata la data. | Compilato in automatico |
 | **Irraggiamento Min (W/m²)** | Soglia minima di irraggiamento solare oltre la quale i calcoli di perdita di energia entrano in funzione. | `50` W/m² |
 | **Tolleranza Diff. Irraggiamento (%)** | Soglia di scostamento consentito (tra 0% e 100%) tra i sensori per il calcolo del Conditional MAX. Se superata, viene preso il valore massimo. (Usata solo con metodo *Conditional MAX*.) | `10` % (Default) |
-| **Riferimento POA per il PR** (selettore) | Metodo con cui si ricava l'irraggiamento di riferimento del PR dai due piranometri TX1/TX3. **Media (Average):** media aritmetica dei due sensori (standard IEC); la tolleranza differenziale non viene usata e il relativo campo è disattivato. **Conditional MAX:** usa il sensore maggiore quando i due divergono oltre la tolleranza (più conservativo). La scelta si applica a tutti i valori di PR. Il pulsante attivo è evidenziato in blu. | `Media (Average)` (Default v12.0) |
+| **Riferimento POA per il PR** (selettore) | Metodo con cui si ricava l'irraggiamento di riferimento del PR dai due piranometri TX1/TX3. **Media (Average):** media aritmetica dei due sensori (standard IEC); la tolleranza differenziale non viene usata e il relativo campo è disattivato. **Conditional MAX:** usa il sensore maggiore quando i due divergono oltre la tolleranza (più conservativo). La scelta si applica a tutti i valori di PR. Il pulsante attivo è evidenziato in blu. | `Media (Average)` (Default v14.0) |
 
 ---
 
@@ -57,11 +57,11 @@ L'interfaccia è stata progettata con un design chiaro moderno, pulito ed elegan
   4. Scrittura nativa in background (tramite Excel COM con supporto Formula2 per evitare errori @) sul file di calcolo giornaliero `PR_recalculation_DD_mmm.xlsx`.
   5. Aggiornamento in tempo reale del file Madre mensile `00 PR_recalculation_MESE.xlsx` (inserendo le formule protette contro i valori vuoti per l'External Availability).
 
-- **Pulsante [ Interrompi (arresto sicuro) ] (v12.0)**: Attivo solo durante l'elaborazione. Alla pressione **non** interrompe il lavoro a metà: imposta una richiesta di arresto che il motore verifica ai punti di controllo sicuri (fra un giorno e l'altro, fra un download VCOM e il successivo). Il giorno in corso viene quindi **completato e salvato**, poi l'esecuzione si ferma nel minor tempo possibile. Il file Madre viene comunque sincronizzato per i giorni già elaborati, così i dati restano coerenti. Lo stato finale riporta *"Elaborazione interrotta dall'utente. Completati: N giorni"*.
+- **Pulsante [ Interrompi (arresto sicuro) ] (v14.0)**: Attivo solo durante l'elaborazione. Alla pressione **non** interrompe il lavoro a metà: imposta una richiesta di arresto che il motore verifica ai punti di controllo sicuri (fra un giorno e l'altro, fra un download VCOM e il successivo). Il giorno in corso viene quindi **completato e salvato**, poi l'esecuzione si ferma nel minor tempo possibile. Il file Madre viene comunque sincronizzato per i giorni già elaborati, così i dati restano coerenti. Lo stato finale riporta *"Elaborazione interrotta dall'utente. Completati: N giorni"*.
 
 ---
 
-## 🌐 Dati VCOM automatici per i giorni mancanti (v12.0)
+## 🌐 Dati VCOM automatici per i giorni mancanti (v14.0)
 
 Se in modalità batch alcuni giorni non hanno tutti i 7 file SCADA richiesti, il software non si limita più a saltarli:
 
@@ -174,4 +174,38 @@ Prima di lanciare un calcolo conviene sapere **quali giorni non sono completi**.
 > - **Un giorno con dati VCOM resta "incompleto" (v12):** La conversione VCOM genera 6 dei 7 file richiesti. Verificare che sia presente anche `Regolazione_della_potenza_attiva_*.xlsx`, che va scaricato con l'estrattore della potenza attiva.
 > - **"cartella del giorno assente" nella Verifica Completezza (v2):** Il giorno esiste in un solo archivio. La riga indica quale dei due manca (`SCADA` o `Tracker`): la cartella va creata e i dati scaricati prima del calcolo.
 > - **"mancano N/24 ore" sul Tracker (v2):** Nella cartella del giorno non ci sono tutti i file orari. Le ore elencate vanno riscaricate; attenzione ai file con nome corretto ma dati di un'altra ora, segnalati a parte come *"inizia alle ..."* / *"finisce alle ..."*.
+
+
+
+### Sincronizzazione Rapida PR SCADA e VCOM (Novità v14.0)
+
+Accanto ai pulsanti di calcolo sono presenti due nuovi comandi dedicati:
+1. **Sync SCADA PR**: Individua automaticamente il report `KPI_Report_Daily.xls*` nella cartella mese e copia i valori di PR SCADA direttamente nella colonna corrispondente del file Madre (`00 PR_recalculation_{MESE}.xlsx`).
+2. **Sync VCOM PR**: Individua il report `Performance_ratio*.csv` o `Performance_ratio_vcom.csv` e aggiorna direttamente la colonna PR VCOM nel file Madre.
+
+Se i file non vengono trovati automaticamente, il sistema aprirà una finestra di dialogo per consentire la selezione manuale del file. L'operazione ricalcola automaticamente tutte le formule del file Madre ed esegue un salvataggio sicuro con backup.
+
+
+---
+
+## 5. Modalità Dati VCOM (Singolo Giorno e Mese Misto)
+
+A partire dalla **versione 14.0**, l'applicazione include il supporto nativo per l'elaborazione del Performance Ratio utilizzando i dati esportati dal portale **meteocontrol / VCOM** in sostituzione dei file SCADA, sia per singoli giorni che per configurazioni miste mensili.
+
+### 5.1 Quando utilizzare i dati VCOM
+- Quando uno o più file SCADA giornalieri sono **assenti** (mancata esportazione da SCADA).
+- Quando i file SCADA contengono **dati corrotti o duplicati** (es. tag inverter duplicati come accaduto il 15 agosto 2026).
+- Quando si desidera un calcolo alternativo basato sulle misure telemetriche a 5 minuti di VCOM.
+
+### 5.2 File VCOM supportati
+L'applicazione individua e ricampiona a 15 minuti i seguenti file CSV esportati da VCOM:
+1. `Potenza_AC_*.csv` $ightarrow$ Potenza attiva dei 36 inverter (TX1, TX2, TX3).
+2. `Produzione_energetica_*.csv` o `Potenza_attiva_*.csv` $ightarrow$ Irraggiamento POA da piranometro e integrazione potenza POC per il contatore di scambio.
+3. `Potenza_attiva_*.csv` $ightarrow$ Regolazione e setpoint di potenza attiva (curtailment).
+4. `Energia_*.csv` $ightarrow$ Energia generata giornaliera per inverter.
+
+### 5.3 Configurazione della Sorgente Dati nel Pannello GUI
+1. **SCADA (Predefinito)**: Elabora tutti i giorni utilizzando i file standard SCADA.
+2. **VCOM (Tutti i giorni)**: Forza l'elaborazione da dati VCOM per tutti i giorni selezionati.
+3. **Misto (SCADA + VCOM)**: Permette di specificare quali giorni elaborare da VCOM (es. inserendo `3, 7, 9` nel campo **Giorni VCOM** o cliccando su **Seleziona Giorni...** per aprire la griglia interattiva con scansione automatica delle cartelle `vcom/`).
 
