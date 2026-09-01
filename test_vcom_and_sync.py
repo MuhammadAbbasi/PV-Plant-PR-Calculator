@@ -129,5 +129,51 @@ class TestVCOMAndMixedBatch(unittest.TestCase):
             shutil.rmtree(sim_month_dir, ignore_errors=True)
             root.destroy()
 
+    def test_05_vcom_mother_row_orange_highlight(self):
+        """Test that days calculated via VCOM are highlighted in Light Orange in the Mother file."""
+        import tkinter as tk
+        import win32com.client
+
+        root = tk.Tk()
+        root.withdraw()
+        app = v14.PRCalculatorGUI(root)
+        app.backup_mother_var.set(False)
+        app.sync_mother_var.set(True)
+
+        sim_dir = tempfile.mkdtemp()
+        try:
+            calcolo_folder = os.path.join(sim_dir, "PR CALCOLO FILE")
+            os.makedirs(calcolo_folder, exist_ok=True)
+
+            template_src = os.path.join(r"\\s01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\PR Calculation automation\original_format", "PR_recalculation_26_apr.xlsx")
+            mother_src = os.path.join(r"\\s01\get\2025.01 Mazara 01 A2A\03 - REPORT\Report\09 Testing\PR Calculation automation\original_format", "00 PR_recalculation_APRL.xlsx")
+
+            shutil.copy2(template_src, os.path.join(calcolo_folder, "PR_recalculation_04_ago.xlsx"))
+            shutil.copy2(template_src, os.path.join(calcolo_folder, "PR_recalculation_05_ago.xlsx"))
+            shutil.copy2(mother_src, os.path.join(calcolo_folder, "00 PR_recalculation_AGOS.xlsx"))
+
+            # Sync with Day 5 as VCOM
+            app.sync_mother_file(calcolo_folder, 2026, 8, vcom_days={5})
+
+            excel = win32com.client.Dispatch("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+            wb = excel.Workbooks.Open(os.path.join(calcolo_folder, "00 PR_recalculation_AGOS.xlsx"))
+            ws = wb.Sheets(1)
+
+            color_day4 = ws.Cells(8, 1).Interior.Color
+            color_day5 = ws.Cells(9, 1).Interior.Color
+            wb.Close(SaveChanges=False)
+            excel.Quit()
+
+            # Day 5 (VCOM) must be light orange (11722975), Day 4 (SCADA) must not be orange
+            self.assertEqual(int(color_day5), 11722975)
+            self.assertNotEqual(int(color_day4), 11722975)
+
+        finally:
+            shutil.rmtree(sim_dir, ignore_errors=True)
+            root.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

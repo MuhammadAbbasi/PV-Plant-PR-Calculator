@@ -7,6 +7,25 @@ STORICO VERSIONI / CHANGELOG
 Aggiungere una voce in cima ad ogni modifica: data (AAAA-MM-GG) e cosa cambia.
 ===============================================================================
 
+v14.0 - 2026-09-01 (UI/UX)
+  * Console Live Log di nuovo visibile: era finita completamente fuori dalla
+    finestra (servivano 1147 px in una finestra da 975). Ora la colonna destra
+    contiene la tabella PVSyst in alto e il log sotto, che occupa lo spazio
+    bianco prima sprecato (circa 420 px) sotto la tabella.
+  * Tabella PVSyst: tutti i 12 mesi visibili (Dicembre era tagliato a meta').
+    Causa: la card si ridimensionava sulla richiesta del contenuto PRIMA che le
+    etichette a capo automatico aggiornassero la propria altezza, restando
+    17 px corta. Corretto in RoundedCard, quindi vale per tutte le card.
+  * Ambito "Intervallo": i campi Dal/Al giorno erano schiacciati fuori dal bordo
+    della card (mezzo spinbox disegnato). Ora sono su una riga dedicata,
+    mostrata solo quando serve, con etichette "Dal giorno" / "al giorno".
+  * La riga "Giorni VCOM" non compare piu' all'avvio con sorgente SCADA o VCOM:
+    all'avvio mancava la chiamata di sincronizzazione del suo stato.
+  * Barra di avanzamento durante l'elaborazione batch (visibile solo mentre il
+    calcolo e' in corso).
+  * Testi di stato allineati a sinistra come tutti gli altri suggerimenti.
+  * Verifica automatica: 'test_v14_layout.py'.
+
 v14.0 - 2026-09-01
   * Nuovi pulsanti dedicati: "Sync SCADA PR" e "Sync VCOM PR" per individuare
     automaticamente i file esterni (KPI_Report_Daily.xls* e Performance_ratio*.csv /
@@ -208,6 +227,25 @@ class RoundedCard(tk.Canvas):
         req_w = self.content_frame.winfo_reqwidth() + 2 * margin
         req_h = self.content_frame.winfo_reqheight() + 2 * margin
         self.config(width=req_w, height=req_h)
+        # _wrap_label binds to this same <Configure> with add="+", so it runs AFTER this
+        # handler and can still grow the content's requested height. Re-fit once the whole
+        # event burst has drained, or the card stays short by the rewrapped lines.
+        self.after_idle(self._sync_height)
+
+    def _sync_height(self):
+        """Re-fit the card to what its content currently asks for.
+
+        _on_content_configure only fires when the content frame's ACTUAL size changes, and
+        _draw pins that size here. So when a resize rewraps a label and the content's
+        REQUESTED height grows, nothing resized the card and the last rows were clipped
+        (the PVSyst table lost Dicembre). Converges: height changes never alter wrapping,
+        which is driven by width."""
+        try:
+            need = self.content_frame.winfo_reqheight() + 2 * self.padding
+            if need != int(self.cget("height")):
+                self.config(height=need)
+        except Exception:
+            pass
 
     def _draw(self, event):
         self.delete("bg")
@@ -224,6 +262,8 @@ class RoundedCard(tk.Canvas):
         margin = self.padding
         self.coords(self.window_id, margin, margin)
         self.itemconfigure(self.window_id, width=w - 2 * margin, height=h - 2 * margin)
+        # The new width may rewrap labels and grow the content's requested height.
+        self.after_idle(self._sync_height)
 
     def _draw_round_rect(self, x0, y0, x1, y1, r, **kwargs):
         self.create_arc(x0, y0, x0 + 2*r, y0 + 2*r, start=90, extent=90, style="pieslice", **kwargs)
@@ -461,7 +501,10 @@ class PRCalculatorGUI:
         """Make a left-aligned tk.Label wrap to the live width of `container` instead of
         overflowing/clipping. Keeps long descriptive/hint text fully readable at any window
         size. Guarded against re-layout feedback loops via a cached last width."""
-        label.configure(justify="left")
+        # anchor="w" as well as justify: justify only aligns the lines of an already-wrapped
+        # block, so a single-line label packed with fill="x" (the status line) rendered
+        # centred while every other hint sat left.
+        label.configure(justify="left", anchor="w")
         label._wrap_cache = -1
         def _update(event):
             new_wrap = max(140, event.width - 6)
@@ -726,7 +769,10 @@ class PRCalculatorGUI:
         self.lbl_sync_hint.grid(row=1, column=0, columnspan=2, pady=(3, 0), sticky="w")
         self._wrap_label(self.lbl_sync_hint, sync_frame)
         
-        # Progress/Status
+        # Progress/Status. The batch can run for minutes; the bar turns "day 7 di 21" into
+        # something readable at a glance. Hidden while idle so the card stays uncluttered.
+        self.progress = ttk.Progressbar(inputs_card, mode="determinate", maximum=100)
+        
         self.lbl_status = tk.Label(inputs_card, text="Pronto. Seleziona la cartella e clicca su Calcola.", bg="#ffffff", fg=self.muted_text, font=("Segoe UI", 11))
         self.lbl_status.pack(anchor="w", pady=(4, 4), fill="x")
         self._wrap_label(self.lbl_status, inputs_card)
@@ -755,17 +801,19 @@ class PRCalculatorGUI:
         lbl_desc_me.pack(anchor="w", pady=(0, 8))
         self._wrap_label(lbl_desc_me, self.metrics_card)
         
-        # Table frame with 1px border
+        # Table frame with 1px border. Width-only fill: with expand=True the tree collapses
+        # to whatever height the card offers and clips the last month (Dicembre); pinned to
+        # its natural height it always shows all 12 rows.
         pvsyst_table_border = tk.Frame(self.metrics_card, bg="#dadce0")
-        pvsyst_table_border.pack(fill="both", expand=True)
+        pvsyst_table_border.pack(fill="x")
         
         pvsyst_table_frame = tk.Frame(pvsyst_table_border, bg="#ffffff")
-        pvsyst_table_frame.pack(fill="both", expand=True, padx=1, pady=1)
+        pvsyst_table_frame.pack(fill="x", padx=1, pady=1)
         
         cols_pvsyst = ("Mese", "Target PR", "Target PR (%)", "Target Corretto")
         # 12 rows: the card no longer stretches, so show every month without scrolling.
         self.pvsyst_tree = ttk.Treeview(pvsyst_table_frame, columns=cols_pvsyst, show="headings", height=12)
-        self.pvsyst_tree.pack(fill="both", expand=True)
+        self.pvsyst_tree.pack(fill="x")
         
         col_widths = {"Mese": 95, "Target PR": 90, "Target PR (%)": 95, "Target Corretto": 110}
         for c in cols_pvsyst:
@@ -3257,7 +3305,7 @@ class PRCalculatorGUI:
         finally:
             self.root.after(0, self._reset_run_buttons)
 
-    def sync_mother_file(self, calcolo_folder, year_val, month_val):
+    def sync_mother_file(self, calcolo_folder, year_val, month_val, vcom_days=None):
         import calendar
         import openpyxl
         import re
@@ -3526,11 +3574,28 @@ class PRCalculatorGUI:
 
             daily_dir = os.path.abspath(calcolo_folder).replace('/', '\\')
             
+            # Determine which days are computed from VCOM data for highlighting
+            if vcom_days is not None:
+                effective_vcom_days = set(vcom_days)
+            else:
+                effective_vcom_days = set()
+                if hasattr(self, 'vcom_days_processed') and self.vcom_days_processed:
+                    effective_vcom_days.update(self.vcom_days_processed)
+                
+                mode_src = self.data_source_var.get() if hasattr(self, 'data_source_var') else "scada"
+                if mode_src == "vcom":
+                    effective_vcom_days.update(range(1, num_days + 1))
+                elif mode_src == "misto" and hasattr(self, '_parse_vcom_days_set'):
+                    effective_vcom_days.update(self._parse_vcom_days_set())
+
             sync_count = 0
             for day_num in range(1, num_days + 1):
                 chk_daily_filename = f"PR_recalculation_{day_num:02d}_{month_name}.xlsx"
                 chk_daily_path = os.path.join(calcolo_folder, chk_daily_filename)
                 r = 5 + day_num - 1
+
+                # Check if this day is a VCOM day
+                is_vcom_day = (day_num in effective_vcom_days)
 
                 if os.path.exists(chk_daily_path):
                     prefix = f"='{daily_dir}\\[{chk_daily_filename}]PR_Calc'"
@@ -3556,6 +3621,16 @@ class PRCalculatorGUI:
                         ws_mother.Cells(r, scada_col).Value = scada_pr.get(day_num)
                     if vcom_pr and vcom_col:
                         ws_mother.Cells(r, vcom_col).Value = vcom_pr.get(day_num)
+
+                    # Highlight VCOM rows in Light Orange (RGB: 255, 224, 178 / 11722975)
+                    try:
+                        row_range = ws_mother.Range(ws_mother.Cells(r, 1), ws_mother.Cells(r, 64))
+                        if is_vcom_day:
+                            row_range.Interior.Color = 11722975  # Soft Light Orange (#FFE0B2)
+                        elif row_range.Interior.Color == 11722975:
+                            row_range.Interior.ColorIndex = -4142  # Clear orange fill if re-calculated via SCADA
+                    except Exception as clr_ex:
+                        pass
                 else:
                     # Daily file not yet processed — clear any stale data/formulas left
                     # over from a previous month's template so the row stays blank.
@@ -3616,6 +3691,7 @@ class PRCalculatorGUI:
                 print(f">>> Ambito ristretto a {len(numerical_subdirs)} giorno/i su {len(available)}: "
                       f"{', '.join(numerical_subdirs)}.")
             
+            self.vcom_days_processed = set()
             if is_batch:
                 # Batch Month Processing mode
                 calcolo_folder = os.path.join(folder, "PR CALCOLO FILE")
@@ -3807,6 +3883,7 @@ class PRCalculatorGUI:
                     # Update status securely from the non-GUI thread
                     status_text = f"Modalità Batch: Elaborazione giorno {day_val} di {len(numerical_subdirs)}..."
                     self.root.after(0, lambda t=status_text: self.lbl_status.config(text=t, foreground=self.warn_color))
+                    self.root.after(0, lambda d=idx, t=len(numerical_subdirs): self._set_progress(d, t))
                     
                     day_folder = os.path.join(folder, day_str)
                     # Determine whether this day uses VCOM or SCADA
@@ -3833,6 +3910,7 @@ class PRCalculatorGUI:
                             from VCOM_to_SCADA import convert_vcom_to_scada
                             convert_vcom_to_scada(v_dir, day_folder, target_date_str)
                             src_label = "VCOM"
+                            self.vcom_days_processed.add(int(day_str))
                         else:
                             raise FileNotFoundError(f"Giorno {day_str}: configurato per VCOM ma nessun file VCOM trovato in '{day_folder}' o 'vcom/'")
 
@@ -3918,6 +3996,8 @@ class PRCalculatorGUI:
                         print(f"[Giorno Singolo] ({date_str}): Generazione dati pseudo-SCADA da VCOM ({vcom_dir})...")
                         from VCOM_to_SCADA import convert_vcom_to_scada
                         convert_vcom_to_scada(vcom_dir, folder, date_str)
+                        if not hasattr(self, "vcom_days_processed"): self.vcom_days_processed = set()
+                        self.vcom_days_processed.add(day_num)
                 else:
                     # Check for missing SCADA files
                     miss = self._missing_files_for_day(folder)
@@ -3955,10 +4035,20 @@ class PRCalculatorGUI:
             quit_excel_app()
             
     def _reset_run_buttons(self):
-        """Return the run controls to idle: Calcola enabled, Interrompi disabled."""
+        """Return the run controls to idle: Calcola enabled, Interrompi disabled, bar hidden."""
         try:
             self.btn_calculate.config(state="normal")
             self.btn_stop.config(state="disabled")
+            self.progress.pack_forget()
+        except Exception:
+            pass
+
+    def _set_progress(self, done, total):
+        """Show the batch progress bar and move it. Call via root.after from the worker."""
+        try:
+            if not self.progress.winfo_ismapped():
+                self.progress.pack(fill="x", pady=(2, 4), before=self.lbl_status)
+            self.progress.config(value=(100.0 * done / total) if total else 0)
         except Exception:
             pass
 
