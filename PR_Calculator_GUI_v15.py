@@ -945,7 +945,27 @@ class PRCalculatorGUI:
             self.lbl_status.config(text="Cartella selezionata: " + os.path.basename(selected_folder), foreground=self.accent_color)
             # Try to auto-detect date from folder name or file names
             self.auto_detect_date(selected_folder)
+            self.auto_detect_vcom_days(selected_folder)
             
+    
+    def auto_detect_vcom_days(self, folder):
+        """Scan folder and subdirectories for days with VCOM data and auto-populate Giorni VCOM field."""
+        try:
+            if not folder or not os.path.exists(folder):
+                return
+            vcom_days = []
+            subdirs = [d for d in os.listdir(folder) if os.path.isdir(os.path.join(folder, d)) and d.isdigit()]
+            for d in sorted(subdirs, key=lambda x: int(x)):
+                d_path = os.path.join(folder, d)
+                if self._find_vcom_folder_for_day(d_path):
+                    vcom_days.append(str(int(d)))
+            if vcom_days:
+                vcom_str = ", ".join(vcom_days)
+                self.vcom_days_var.set(vcom_str)
+                print(f"[Auto-Scan VCOM] Rilevati dati VCOM per i giorni: {vcom_str}")
+        except Exception as e:
+            print(f"[Auto-Scan VCOM] Error scanning folder: {e}")
+
     def auto_detect_date(self, folder):
         try:
             if not folder or not os.path.exists(folder):
@@ -2279,18 +2299,20 @@ class PRCalculatorGUI:
         df_reg['limit_ratio'] = df_reg[val_col].astype(str).str.replace(',', '.').astype(float) / 100.0
         
         def normalize_columns(df):
-            if 'Colonna2' not in df.columns and len(df.columns) >= 6:
+            if df is None or len(df) == 0:
+                return pd.DataFrame(columns=[f"Colonna{i+1}" for i in range(10)])
+            if 'Colonna2' not in df.columns:
                 row_data = pd.DataFrame([df.columns.values], columns=[f"Colonna{i+1}" for i in range(len(df.columns))])
                 df.columns = [f"Colonna{i+1}" for i in range(len(df.columns))]
-                return pd.concat([row_data, df], ignore_index=True)
+                df = pd.concat([row_data, df], ignore_index=True)
             return df
 
         # 2. Load weather data (TX1 and TX3)
         df_w1 = normalize_columns(pd.read_excel(ts1_w_file))
         df_w3 = normalize_columns(pd.read_excel(ts3_w_file))
         
-        df_poa1 = df_w1[df_w1['Colonna2'].astype(str).str.strip() == "POA"].copy()
-        df_poa3 = df_w3[df_w3['Colonna2'].astype(str).str.strip() == "POA"].copy()
+        df_poa1 = df_w1[df_w1['Colonna2'].astype(str).str.strip() == "POA"].copy() if (len(df_w1) > 0 and 'Colonna2' in df_w1.columns) else pd.DataFrame()
+        df_poa3 = df_w3[df_w3['Colonna2'].astype(str).str.strip() == "POA"].copy() if (len(df_w3) > 0 and 'Colonna2' in df_w3.columns) else pd.DataFrame()
         
         # 3. Load meter reading data
         df_m = normalize_columns(pd.read_excel(satac_file))
@@ -2361,11 +2383,16 @@ class PRCalculatorGUI:
 
         calc_rows = []
         for idx, t_str in enumerate(time_strs):
-            p1_row = df_poa1[df_poa1['Colonna6'].astype(str).str[:8] == t_str]
-            p3_row = df_poa3[df_poa3['Colonna6'].astype(str).str[:8] == t_str]
+            p1_row = df_poa1[df_poa1['Colonna6'].astype(str).str[:8] == t_str] if (len(df_poa1) > 0 and 'Colonna6' in df_poa1.columns) else pd.DataFrame()
+            p3_row = df_poa3[df_poa3['Colonna6'].astype(str).str[:8] == t_str] if (len(df_poa3) > 0 and 'Colonna6' in df_poa3.columns) else pd.DataFrame()
             
             poa1 = clean_float(p1_row['Colonna3'].values[0]) if len(p1_row) > 0 else 0.0
             poa3 = clean_float(p3_row['Colonna3'].values[0]) if len(p3_row) > 0 else 0.0
+            
+            if poa1 <= 0 and poa3 > 0:
+                poa1 = poa3
+            elif poa3 <= 0 and poa1 > 0:
+                poa3 = poa1
             
             poa1_kwh = poa1 / 4000.0
             poa3_kwh = poa3 / 4000.0
@@ -3465,10 +3492,15 @@ class PRCalculatorGUI:
             # Dynamically format and adjust summary row in existing Mother file if needed!
             current_summary_row = None
             for r in range(30, 42):
-                f_text = ws_mother.Cells(r, 6).Formula
-                if isinstance(f_text, str) and 'AVERAGE' in f_text.upper():
-                    current_summary_row = r
-                    break
+                c1_val = str(ws_mother.Cells(r, 1).Value or "")
+                if "-" not in c1_val and "/" not in c1_val:
+                    for c_chk in range(2, 15):
+                        f_text = str(ws_mother.Cells(r, c_chk).Formula or "").upper()
+                        if "AVERAGE" in f_text or "SUM" in f_text:
+                            current_summary_row = r
+                            break
+                    if current_summary_row is not None:
+                        break
                     
             if current_summary_row is not None:
                 if current_summary_row < target_summary_row:
@@ -3485,29 +3517,34 @@ class PRCalculatorGUI:
                     del_end = current_summary_row - 1
                     ws_mother.Rows(f"{del_start}:{del_end}").Delete()
                     
-                ws_mother.Cells(target_summary_row, 2).Formula = f"=SUM(B5:B{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 3).Formula = f"=SUM(C5:C{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 4).Formula = f"=SUM(D5:D{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 5).Formula = f"=SUM(E5:E{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 6).Formula = f"=AVERAGE(F5:F{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 7).Formula = f"=AVERAGE(G5:G{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 8).Formula = f"=AVERAGE(H5:H{target_summary_row-1})"
-                # PR Compensated monthly average — matches v10 (plain AVERAGE of day rows;
-                # AVERAGE ignores blank/unprocessed days but includes any 0-value days).
-                ws_mother.Cells(target_summary_row, 9).Formula = f"=AVERAGE(I5:I{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 10).Formula = f"=SUMIF(J5:J{target_summary_row-1},\"<>0\")/COUNTIF(J5:J{target_summary_row-1},\"<>0\")"
-                ws_mother.Cells(target_summary_row, 11).Formula = f"=SUM(K5:K{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 12).Formula = f"=SUM(L5:L{target_summary_row-1})"
-                ws_mother.Cells(target_summary_row, 13).Formula = f"=SUM(M5:M{target_summary_row-1})"
-                
-                # Format summary row cells as numbers (prevent date formatting)
-                ws_mother.Range(f"B{target_summary_row}:D{target_summary_row}").NumberFormatLocal = "0,0000"
-                ws_mother.Cells(target_summary_row, 5).NumberFormatLocal = "0,00"
-                ws_mother.Range(f"K{target_summary_row}:M{target_summary_row}").NumberFormatLocal = "0,00"
+            ws_mother.Cells(target_summary_row, 2).Formula = f"=SUM(B5:B{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 3).Formula = f"=SUM(C5:C{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 4).Formula = f"=SUM(D5:D{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 5).Formula = f"=MAX(E5:E{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 6).Formula = f"=SUM(F5:F{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 7).Formula = f"=AVERAGE(G5:G{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 8).Formula = f"=AVERAGE(H5:H{target_summary_row-1})"
+            # PR Compensated monthly average — matches v10 (plain AVERAGE of day rows;
+            # AVERAGE ignores blank/unprocessed days but includes any 0-value days).
+            ws_mother.Cells(target_summary_row, 9).Formula = f"=AVERAGE(I5:I{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 10).Formula = f"=SUMIF(J5:J{target_summary_row-1},\"<>0\")/COUNTIF(J5:J{target_summary_row-1},\"<>0\")"
+            ws_mother.Cells(target_summary_row, 11).Formula = f"=SUM(K5:K{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 12).Formula = f"=SUM(L5:L{target_summary_row-1})"
+            ws_mother.Cells(target_summary_row, 13).Formula = f"=SUM(M5:M{target_summary_row-1})"
+            
+            # Inverter PR columns averages (columns 14 to 49)
+            for inv_col in range(14, 50):
+                col_let = openpyxl.utils.get_column_letter(inv_col)
+                ws_mother.Cells(target_summary_row, inv_col).Formula = f"=AVERAGE({col_let}5:{col_let}{target_summary_row-1})" 
+            
+            # Format summary row cells as numbers (prevent date formatting)
+            ws_mother.Range(f"B{target_summary_row}:D{target_summary_row}").NumberFormatLocal = "0,0000"
+            ws_mother.Cells(target_summary_row, 5).NumberFormatLocal = "0,00"
+            ws_mother.Range(f"K{target_summary_row}:M{target_summary_row}").NumberFormatLocal = "0,00"
             
             # Write/update formulas for External Availability in day rows (5 to 4 + num_days) after summary row has been adjusted
             for r in range(5, 5 + num_days):
-                ws_mother.Cells(r, 10).Formula = f"=IF(E{r}=\"\",0,(E{r}/(E{r}+K{r}+L{r}+M{r}))*100)"
+                ws_mother.Cells(r, 10).Formula = f"=IF(F{r}=\"\",0,(F{r}/(F{r}+K{r}+L{r}+M{r}))*100)"
             
             # Change links natively via Excel to avoid openpyxl corruption if initialized new
             if initialized_new:
@@ -3651,13 +3688,29 @@ class PRCalculatorGUI:
                     if vcom_pr and vcom_col:
                         ws_mother.Cells(r, vcom_col).Value = vcom_pr.get(day_num)
 
-                    # Highlight VCOM rows in Light Orange (RGB: 255, 224, 178 / 11722975)
+                    # Highlight VCOM rows in Light Orange (RGB: 255, 224, 178 / 11722975) and add VCOM difference comment
                     try:
                         row_range = ws_mother.Range(ws_mother.Cells(r, 1), ws_mother.Cells(r, 64))
+                        vcom_note = ("Nota: Giorno elaborato con dati VCOM. È presente una differenza di circa 300 kW "
+                                     "(kWh/giorno) nei dati di energia giornalieri tra SCADA e VCOM.")
+                        date_cell = ws_mother.Cells(r, 1)
                         if is_vcom_day:
                             row_range.Interior.Color = 11722975  # Soft Light Orange (#FFE0B2)
-                        elif row_range.Interior.Color == 11722975:
-                            row_range.Interior.ColorIndex = -4142  # Clear orange fill if re-calculated via SCADA
+                            try:
+                                if date_cell.Comment is not None:
+                                    date_cell.Comment.Delete()
+                                date_cell.AddComment(vcom_note)
+                                date_cell.Comment.Visible = False
+                            except Exception:
+                                pass
+                        else:
+                            if row_range.Interior.Color == 11722975:
+                                row_range.Interior.ColorIndex = -4142  # Clear orange fill if re-calculated via SCADA
+                            try:
+                                if date_cell.Comment is not None:
+                                    date_cell.Comment.Delete()
+                            except Exception:
+                                pass
                     except Exception as clr_ex:
                         pass
                 else:
@@ -3871,11 +3924,12 @@ class PRCalculatorGUI:
                             guide_hint = f"\n\nPer i giorni {', '.join(sorted(no_vcom_days, key=lambda x: int(x)))}, puoi scaricare i dati VCOM inserendoli nella cartella 'vcom/' del relativo giorno."
                             
                         proceed = self._ask_yes_no_on_gui(
-                            "Dati mancanti per alcuni giorni",
-                            f"I seguenti giorni non hanno tutti i file SCADA richiesti:\n\n{detail}{guide_hint}\n\n"
-                            "Vuoi saltare questi giorni ed elaborare il PR solo per i giorni completi?\n\n"
-                            "[Sì] = salta i giorni incompleti e continua\n"
-                            "[No] = annulla l'intera elaborazione."
+                            "Elaborazione Giorni Disponibili",
+                            f"I giorni con dati completi (SCADA o VCOM) verranno elaborati e sincronizzati sul file Madre.\n\n"
+                            f"I seguenti giorni non hanno file SCADA/VCOM e verranno saltati:\n{detail}{guide_hint}\n\n"
+                            "Vuoi procedere con il calcolo dei giorni disponibili?\n\n"
+                            "[Sì] = Elabora i giorni disponibili e aggiorna il file Madre\n"
+                            "[No] = Annulla l'elaborazione"
                         )
                         if not proceed:
                             raise RuntimeError(

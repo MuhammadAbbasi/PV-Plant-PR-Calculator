@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📘 Manuale Utente & Guida Operativa - PR Calculator v15.0 (GET SRL)</title>
+    <style>
+        :root {
+            --primary-navy: #1a365d;
+            --primary-blue: #2b6cb0;
+            --accent-blue: #3182ce;
+            --light-bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #2d3748;
+            --text-muted: #718096;
+            --vcom-orange: #ffe0b2;
+            --vcom-border: #f6ad55;
+            --success-green: #38a169;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            color: var(--text-main);
+            background-color: var(--light-bg);
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1050px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .header {
+            border-bottom: 3px solid var(--primary-blue);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title h1 {
+            color: var(--primary-navy);
+            margin: 0 0 8px 0;
+            font-size: 28px;
+        }
+
+        .header-title p {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .badge-version {
+            background: var(--primary-blue);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .info-box {
+            background-color: #ebf8ff;
+            border-left: 5px solid var(--accent-blue);
+            padding: 16px 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        .info-box h4 {
+            margin: 0 0 6px 0;
+            color: var(--primary-navy);
+        }
+
+        .img-container {
+            text-align: center;
+            margin: 35px 0;
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #cbd5e0;
+        }
+
+        .img-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+        }
+
+        .img-caption {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 12px;
+            font-style: italic;
+        }
+
+        .area-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--primary-blue);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.2s ease;
+        }
+
+        .area-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .area-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--primary-navy);
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .area-number {
+            background: var(--primary-blue);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 12px 16px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f7fafc;
+            color: var(--primary-navy);
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background-color: #faf5ff;
+        }
+
+        code {
+            background: #edf2f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            color: #c53030;
+        }
+
+        .use-case {
+            background: #fffaf0;
+            border: 1px solid #feebc8;
+            border-left: 5px solid #dd6b20;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 25px 0;
+        }
+
+        .use-case h3 {
+            margin-top: 0;
+            color: #c05621;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .step-list {
+            padding-left: 20px;
+        }
+
+        .step-list li {
+            margin-bottom: 8px;
+        }
+
+        .badge-vcom {
+            background: var(--vcom-orange);
+            color: #7b341e;
+            border: 1px solid var(--vcom-border);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="header-title">
+            <h1>📘 Manuale Utente & Guida Operativa</h1>
+            <p><strong>Software:</strong> PR Calculator v15.0 &middot; <strong>Cliente:</strong> GET SRL &middot; <strong>Impianto:</strong> Mazara 01 (12.62 MWp)</p>
+        </div>
+        <div>
+            <span class="badge-version">v15.0 Final Release</span>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <h4>📌 Scopo del Software</h4>
+        <p>Il software <strong>PR Calculator v15.0</strong> automatizza il ricalcolo del Performance Ratio (PR) giornaliero e mensile, corregge ed interpola le anomalie dei contatori fisici SATAC, compensa le perdite di rete e di curtailment, converte i file telemetrici dal portale <strong>meteocontrol VCOM</strong>, e aggiorna in tempo reale il File Madre Excel <code>00 PR_recalculation_AGOS.xlsx</code>.</p>
+    </div>
+
+    <h2>🖥️ Interfaccia Grafica (GUI) ed Aree Numerate</h2>
+    <p>L'interfaccia utente è suddivisa in <strong>9 aree funzionali</strong> principali per un utilizzo intuitivo ed esente da errori di imputazione.</p>
+
+    <div class="img-container">
+        <img src="gui_annotated_guide.png" alt="Interfaccia Grafica PR Calculator v15.0 Annotata">
+        <div class="img-caption">Figura 1: Layout dell'interfaccia grafica con la numerazione dettagliata delle 9 aree operative.</div>
+    </div>
+
+    <h2>📌 Dettaglio delle Aree dell'Interfaccia e Istruzioni d'Uso</h2>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">1</span> Area Intestazione e Guida Rapida</h3>
+        <p>Contiene il brand <strong>GET SRL</strong>, la versione del software e il pulsante di aiuto rapido <code>[ ? Guida d'Uso ]</code> che apre istantaneamente questo manuale nel browser.</p>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">2</span> Selezione Cartella di Input (SCADA / VCOM)</h3>
+        <p>Permette all'operatore di selezionare la cartella dei file grezzi tramite il pulsante <code>[ Sfoglia... ]</code>:</p>
+        <ul>
+            <li><strong>Giorno Singolo:</strong> Selezionare la cartella del giorno specifico (es. <code>2026 08/19</code>).</li>
+            <li><strong>Modalità Mensile Batch:</strong> Selezionare la cartella del mese (es. <code>2026 08</code>). Il software rileva automaticamente tutte le cartelle dei giorni (<code>01</code>...<code>31</code>) ed esegue il calcolo in sequenza automatica.</li>
+        </ul>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">3</span> Parametri di Calcolo e Riferimento POA</h3>
+        <p>Gestisce la configurazione dei parametri di calcolo delle perdite e del sensore di irraggiamento:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Parametro</th>
+                    <th>Descrizione e Funzione</th>
+                    <th>Valore Predefinito</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Data (AAAA-MM-GG)</strong></td>
+                    <td>Rilevata automaticamente dal nome della cartella o dai file Excel.</td>
+                    <td>Automatico (es. <code>2026-08-19</code>)</td>
+                </tr>
+                <tr>
+                    <td><strong>PR Mensile PVSyst</strong></td>
+                    <td>Obiettivo mensile teorico letto dalla tabella PVSyst con degradazione annua dello 0.4%.</td>
+                    <td>Auto-compilato</td>
+                </tr>
+                <tr>
+                    <td><strong>Irraggiamento Min (W/m²)</strong></td>
+                    <td>Soglia minima per attivare i calcoli di perdita di energia per inverter.</td>
+                    <td><code>50</code> W/m²</td>
+                </tr>
+                <tr>
+                    <td><strong>Riferimento POA</strong></td>
+                    <td>Selezione del metodo di irraggiamento: <strong>Media (Average)</strong> (Standard IEC) o <strong>Conditional MAX</strong> (Tol. 10%).</td>
+                    <td><code>Media (Average)</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">4</span> Opzione Ricalcolo Forzato</h3>
+        <p>Se la casella <code>[ Ricalcola forzatamente i giorni già elaborati ]</code> è attivata, il software ricalcola da zero tutti i giorni sovrascrivendo i file giornalieri esistenti. Se deselezionata, il software salta velocemente i giorni già elaborati.</p>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">5</span> Pulsanti di Azione e Sincronizzazione</h3>
+        <p>Contiene i comandi principali dell'applicazione:</p>
+        <ul>
+            <li><code>[ Calcola Performance Ratio ]</code>: Avvia l'elaborazione completa del giorno o del mese batch.</li>
+            <li><code>[ Sync SCADA PR ]</code>: Importa il PR SCADA dal report KPI nel File Madre.</li>
+            <li><code>[ Sync VCOM PR ]</code>: Importa il PR dal file CSV VCOM nel File Madre.</li>
+            <li><code>[ Interrompi ]</code>: Esegue un arresto sicuro al termine del giorno in corso.</li>
+        </ul>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">6</span> Configurazione Sorgente Dati (SCADA / VCOM / Misto)</h3>
+        <p>Consente all'operatore di scegliere la sorgente dei dati per il calcolo:</p>
+        <ul>
+            <li><strong>SCADA (Predefinito):</strong> Usa i file SCADA standard a 15 minuti.</li>
+            <li><strong>VCOM:</strong> Forza l'uso dei file CSV VCOM per tutti i giorni.</li>
+            <li><strong>Misto (SCADA + VCOM):</strong> Consente di specificare singolarmente i giorni da elaborare con dati VCOM (es. inserendo <code>19, 22, 23</code> nella casella o tramite la griglia interattiva).</li>
+        </ul>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">7</span> Tabella Target PVSyst e Degradazione Annuale</h3>
+        <p>Mostra i valori di Target PR contrattuali mensili degradati dello 0.4%/anno a partire dal COD (Febbraio 2025). Evidenzia automaticamente il mese della data selezionata.</p>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">8</span> Indicatore di Stato e Barra di Avanzamento</h3>
+        <p>Mostra in tempo reale lo stato dell'elaborazione (es. <em>"Elaborazione in corso: Giorno 19/31..."</em>) e segnala il completamento con successo.</p>
+    </div>
+
+    <div class="area-card">
+        <h3 class="area-title"><span class="area-number">9</span> Console Live Log di Esecuzione</h3>
+        <p>Finestra di testo che riporta tutti i log dettagliati dell'operazione, la pulizia dei dati, le conversioni VCOM e la scrittura delle formule sul File Madre Excel.</p>
+    </div>
+
+    <h2>💡 Casi d'Uso Operativi (Use Cases)</h2>
+
+    <div class="use-case">
+        <h3>Caso d'Uso 1: Calcolo Mensile Standard da Dati SCADA (Routine Fine Mese)</h3>
+        <p><strong>Scenario:</strong> L'operatore deve ricalcolare l'intero mese di Agosto 2026 utilizzando i file SCADA ufficiali.</p>
+        <ol class="step-list">
+            <li>Aprire l'applicazione <code>dist/PR_Calculator_v15.exe</code>.</li>
+            <li>Cliccare su <code>[ Sfoglia... ]</code> (Area 2) e selezionare la cartella del mese <code>2026 08</code>.</li>
+            <li>Assicurarsi che la sorgente dati sia impostata su <strong>SCADA</strong> (Area 6).</li>
+            <li>Cliccare sul pulsante principale <code>[ Calcola Performance Ratio ]</code> (Area 5).</li>
+            <li><strong>Risultato:</strong> Vengono generati i 31 file giornalieri <code>PR_recalculation_DD_ago.xlsx</code> e il File Madre <code>00 PR_recalculation_AGOS.xlsx</code> viene popolato con le formule, le letture del contatore nella colonna <strong>Meter Reading [MWh]</strong> e i totali sulla Riga 36.</li>
+        </ol>
+    </div>
+
+    <div class="use-case">
+        <h3>Caso d'Uso 2: Recupero di Giorni con SCADA Mancante tramite Dati VCOM</h3>
+        <p><strong>Scenario:</strong> Nel mese di Agosto 2026, i giorni 19, 22 e 23 non hanno i file SCADA ma dispongono delle esportazioni CSV VCOM.</p>
+        <ol class="step-list">
+            <li>Selezionare la cartella del mese <code>2026 08</code>.</li>
+            <li>In Area 6, selezionare la sorgente <strong>Misto (SCADA + VCOM)</strong>.</li>
+            <li>Inserire nel campo <em>Giorni VCOM</em> la stringa <code>19, 22, 23</code> oppure cliccare <code>[ Seleziona Giorni... ]</code> per far scansionare automaticamente le cartelle <code>vcom/</code>.</li>
+            <li>Cliccare su <code>[ Calcola Performance Ratio ]</code>.</li>
+            <li><strong>Risultato:</strong> Il motore converte i CSV VCOM per i 3 giorni indicati, accumula le letture del contatore ($M_{\text{prev}} + E_{\text{today}}$), evidenzia le tre righe nel File Madre in <span class="badge-vcom">Arancione Chiaro #FFE0B2</span> ed inserisce la nota esplicativa sulla differenza di circa 300 kW.</li>
+        </ol>
+    </div>
+
+    <div class="use-case">
+        <h3>Caso d'Uso 3: Ricalcolo Forzato di un Singolo Giorno</h3>
+        <p><strong>Scenario:</strong> Un file SCADA del giorno 19 Agosto è stato scaricato nuovamente per correzione e si desidera ricalcolare solo quel giorno.</p>
+        <ol class="step-list">
+            <li>Selezionare la cartella del giorno specifico <code>2026 08/19</code>.</li>
+            <li>Spuntare la casella <code>[ Ricalcola forzatamente i giorni già elaborati ]</code> (Area 4).</li>
+            <li>Cliccare su <code>[ Calcola Performance Ratio ]</code>.</li>
+            <li><strong>Risultato:</strong> Il giorno 19 viene ricalcolato da dati SCADA. Nel File Madre la riga torna di colore bianco e la nota VCOM viene rimossa automaticamente.</li>
+        </ol>
+    </div>
+
+    <div class="use-case">
+        <h3>Caso d'Uso 4: Sincronizzazione dei PR Esterni (SCADA & VCOM)</h3>
+        <p><strong>Scenario:</strong> Aggiornare direttamente le colonne PR SCADA e PR VCOM nel File Madre.</p>
+        <ol class="step-list">
+            <li>Cliccare su <code>[ Sync SCADA PR ]</code> per selezionare il report <code>KPI_Report_Daily.xlsx</code> e popolare la colonna PR SCADA.</li>
+            <li>Cliccare su <code>[ Sync VCOM PR ]</code> per selezionare il report <code>Performance_ratio_vcom.csv</code> e popolare la colonna PR VCOM.</li>
+            <li><strong>Risultato:</strong> Il File Madre ricalcola istantaneamente tutte le disponibilità e si salva in sicurezza.</li>
+        </ol>
+    </div>
+
+    <h2>📑 Tabella Collocazione Colonne nel File Madre (00 PR_recalculation_AGOS.xlsx)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Colonna</th>
+                <th>Intestazione Excel</th>
+                <th>Sorgente / Formula Scritta</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>A (1)</strong></td><td>Data</td><td>Data del giorno (es. <code>2026-08-19</code>)</td></tr>
+            <tr><td><strong>B (2)</strong></td><td>Irradiance TX1</td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$D$111</code></td></tr>
+            <tr><td><strong>C (3)</strong></td><td>Irradiance TX3</td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$F$111</code></td></tr>
+            <tr><td><strong>D (4)</strong></td><td>Irradiance Cond MAX</td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$I$111</code></td></tr>
+            <tr><td><strong>E (5)</strong></td><td><strong>Meter Reading [MWh]</strong> <em>(Novità v15)</em></td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$L$110</code></td></tr>
+            <tr><td><strong>F (6)</strong></td><td>Energy (day)</td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$M$111</code></td></tr>
+            <tr><td><strong>G (7)</strong></td><td>PR Total</td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$BA$5*100</code></td></tr>
+            <tr><td><strong>H (8)</strong></td><td>PR VCOM</td><td>Popolata tramite <em>Sync VCOM PR</em></td></tr>
+            <tr><td><strong>I (9)</strong></td><td>PR Compensated</td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$BH$11</code></td></tr>
+            <tr><td><strong>J (10)</strong></td><td>External Availability [%]</td><td><code>=IF(F5="",0,(F5/(F5+K5+L5+M5))*100)</code></td></tr>
+            <tr><td><strong>K-M (11-13)</strong></td><td>TX1, TX2, TX3 Loss</td><td><code>='[PR_recalculation_19_ago.xlsx]PR_Calc'!$AA$111</code> / <code>$AN$111</code> / <code>$BA$111</code></td></tr>
+        </tbody>
+    </table>
+
+</div>
+
+</body>
+</html>
