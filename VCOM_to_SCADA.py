@@ -38,58 +38,47 @@ def load_vcom_csv(file_path):
                 pass
     raise ValueError(f"Impossibile leggere il file CSV VCOM: {file_path}")
 
-def get_previous_day_meter_value(date_str, vcom_folder):
+def get_previous_day_meter_value(date_str, vcom_folder, output_folder=None):
     """
-    Finds the last cumulative SATAC meter reading (MWh) from the previous day's SCADA files.
+    Finds the last cumulative SATAC meter reading (MWh) from the previous day's SCADA/VCOM files.
     If the folder/file doesn't exist, defaults to 0.0 MWh.
     """
     dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
     prev_dt = dt - datetime.timedelta(days=1)
-    
-    day_folder = os.path.dirname(os.path.abspath(vcom_folder))
-    month_folder = os.path.dirname(day_folder)
-    reports_root = os.path.dirname(month_folder)
-    
-    prev_month_str = f"{prev_dt.year} {prev_dt.month:02d}"
     prev_day_str = f"{prev_dt.day:02d}"
-    
-    prev_day_folder = os.path.join(reports_root, prev_month_str, prev_day_str)
+    prev_month_str = f"{prev_dt.year} {prev_dt.month:02d}"
     
     satac_patterns = ["SATAC_Meter_15Min.xlsx", "SATAC_Meter*.xlsx", "*SATAC*.xlsx"]
-    if os.path.exists(prev_day_folder):
-        for pat in satac_patterns:
-            matches = glob.glob(os.path.join(prev_day_folder, pat))
-            if matches:
-                try:
-                    df = pd.read_excel(matches[0])
-                    df_meter = df[df['Colonna2'].astype(str).str.strip().str.startswith("Energia attiva prod")]
-                    if len(df_meter) > 0:
-                        val = df_meter['Colonna3'].values[-1]
-                        parsed_val = clean_vcom_val(val)
-                        if parsed_val is not None and parsed_val > 0:
-                            print(f"[{date_str}] Found previous day meter value: {parsed_val} MWh")
-                            return parsed_val
-                except Exception as ex:
-                    print(f"[{date_str}] Error reading previous day SCADA file: {ex}")
-                    
-    # Also fallback to check test month directory if test_month exists
-    if "VCOM TEST" in month_folder:
-        prev_day_folder_test = os.path.join(month_folder, prev_day_str)
-        if os.path.exists(prev_day_folder_test):
+    
+    search_folders = []
+    if output_folder:
+        m_dir = os.path.dirname(os.path.abspath(output_folder))
+        search_folders.append(os.path.join(m_dir, prev_day_str))
+        search_folders.append(os.path.join(os.path.dirname(m_dir), prev_month_str, prev_day_str))
+        
+    if vcom_folder:
+        v_abs = os.path.abspath(vcom_folder)
+        m_dir_v = os.path.dirname(v_abs)
+        search_folders.append(os.path.join(m_dir_v, prev_day_str))
+        search_folders.append(os.path.join(os.path.dirname(m_dir_v), prev_month_str, prev_day_str))
+        
+    for prev_folder in search_folders:
+        if os.path.exists(prev_folder):
             for pat in satac_patterns:
-                matches = glob.glob(os.path.join(prev_day_folder_test, pat))
-                if matches:
+                matches = glob.glob(os.path.join(prev_folder, pat))
+                for match in matches:
                     try:
-                        df = pd.read_excel(matches[0])
-                        df_meter = df[df['Colonna2'].astype(str).str.strip().str.startswith("Energia attiva prod")]
-                        if len(df_meter) > 0:
-                            val = df_meter['Colonna3'].values[-1]
-                            parsed_val = clean_vcom_val(val)
-                            if parsed_val is not None and parsed_val > 0:
-                                print(f"[{date_str}] Found previous day test meter value: {parsed_val} MWh")
-                                return parsed_val
-                    except Exception as ex:
-                        print(f"[{date_str}] Error reading previous day test file: {ex}")
+                        df = pd.read_excel(match)
+                        if 'Colonna2' in df.columns:
+                            df_meter = df[df['Colonna2'].astype(str).str.strip().str.startswith("Energia attiva prod")]
+                            if len(df_meter) > 0:
+                                val = clean_vcom_val(df_meter['Colonna3'].values[-1])
+                                if val is not None and val > 0:
+                                    print(f"[{date_str}] Found previous day meter value: {val} MWh (from {os.path.basename(match)})")
+                                    return val
+                    except Exception:
+                        pass
+                        
     print(f"[{date_str}] No previous day meter value found; defaulting to 0.0 MWh")
     return 0.0
 
@@ -171,8 +160,17 @@ def convert_vcom_to_scada(vcom_folder, output_folder, date_str):
             print(f"[{date_str}] Avviso: Impossibile leggere file regolazione VCOM: {e}")
             df_vcom_reg = None
 
+    df_vcom_energy = None
+    if vcom_energy_file:
+        try:
+            df_vcom_energy = load_vcom_csv(vcom_energy_file)
+            print(f"[{date_str}] File Energia VCOM caricato: {os.path.basename(vcom_energy_file)}")
+        except Exception as e:
+            print(f"[{date_str}] Avviso: Impossibile leggere file energia VCOM: {e}")
+            df_vcom_energy = None
+
     # Normalize column names (ensure 'Data' is the timestamp column)
-    for df in [df_vcom_ac, df_vcom_prod] + ([df_vcom_reg] if df_vcom_reg is not None else []):
+    for df in [df_vcom_ac, df_vcom_prod] + ([df_vcom_reg] if df_vcom_reg is not None else []) + ([df_vcom_energy] if df_vcom_energy is not None else []):
         for c in df.columns:
             if c.strip().lower() in ['data', 'time', 'ora', 'timestamp']:
                 df.rename(columns={c: 'Data'}, inplace=True)
@@ -189,6 +187,10 @@ def convert_vcom_to_scada(vcom_folder, output_folder, date_str):
         for col in df_vcom_reg.columns:
             if col != 'Data':
                 df_vcom_reg[col] = df_vcom_reg[col].apply(clean_vcom_val)
+    if df_vcom_energy is not None:
+        for col in df_vcom_energy.columns:
+            if col != 'Data':
+                df_vcom_energy[col] = df_vcom_energy[col].apply(clean_vcom_val)
             
     # Function to parse VCOM Data (HH.MM or HH:MM or HH:MM:SS) into minutes of the day
     def time_to_minutes(time_str):
@@ -207,6 +209,8 @@ def convert_vcom_to_scada(vcom_folder, output_folder, date_str):
     df_vcom_prod['minutes'] = df_vcom_prod['Data'].apply(time_to_minutes)
     if df_vcom_reg is not None:
         df_vcom_reg['minutes'] = df_vcom_reg['Data'].apply(time_to_minutes)
+    if df_vcom_energy is not None:
+        df_vcom_energy['minutes'] = df_vcom_energy['Data'].apply(time_to_minutes)
     
     # Map 5-min intervals to 15-min intervals (0, 15, 30, 45, 60, ..., 1440)
     def map_to_15min_interval(m):
@@ -217,6 +221,8 @@ def convert_vcom_to_scada(vcom_folder, output_folder, date_str):
     df_vcom_prod['interval_15'] = df_vcom_prod['minutes'].apply(map_to_15min_interval)
     if df_vcom_reg is not None:
         df_vcom_reg['interval_15'] = df_vcom_reg['minutes'].apply(map_to_15min_interval)
+    if df_vcom_energy is not None:
+        df_vcom_energy['interval_15'] = df_vcom_energy['minutes'].apply(map_to_15min_interval)
     
     # Standard 15-minute intervals (96 intervals from 00:00 to 23:45)
     time_intervals_min = list(range(0, 24 * 60, 15))
@@ -302,36 +308,65 @@ def convert_vcom_to_scada(vcom_folder, output_folder, date_str):
     # -------------------------------------------------------------
     # 3. PROCESS SATAC METER FILE (SATAC_Meter_15Min)
     # -------------------------------------------------------------
-    p_cols = [c for c in df_vcom_prod.columns if 'potenza [kw]' in c.lower() or 'potenza' in c.lower()]
-    meter_col = p_cols[0] if p_cols else None
-    
-    cumulative_mwh = get_previous_day_meter_value(date_str, vcom_folder)
+    cumulative_mwh_base = get_previous_day_meter_value(date_str, vcom_folder, output_folder=output_folder)
     rows = []
     
-    for idx, m in enumerate(time_intervals_min):
-        t_str = f"{m//60:02d}:{m%60:02d}:00"
-        if m == 0:
-            sub = df_vcom_prod[df_vcom_prod['minutes'] == 0]
-        else:
-            sub = df_vcom_prod[df_vcom_prod['interval_15'] == m]
-            
-        power_kw = sub[meter_col].mean() if (meter_col and len(sub) > 0) else 0.0
-        # Energy produced in 15 mins (kWh) = power_kw * 0.25h
-        energy_kwh = max(0.0, float(power_kw) * 0.25)
-        energy_mwh = energy_kwh / 1000.0
+    # Check if df_vcom_energy provides per-inverter daily cumulative energy (Energia generata al giorno [kWh])
+    energy_inv_cols = []
+    if df_vcom_energy is not None:
+        energy_inv_cols = [c for c in df_vcom_energy.columns if c != 'Data' and c != 'minutes' and c != 'interval_15']
         
-        # Accumulate
-        if m > 0:
-            cumulative_mwh += energy_mwh
+    if df_vcom_energy is not None and len(energy_inv_cols) > 0:
+        print(f"[{date_str}] Calcolo letture SATAC Meter da file Energia VCOM ({len(energy_inv_cols)} inverters)...")
+        df_vcom_energy['cum_kwh_plant'] = df_vcom_energy[energy_inv_cols].sum(axis=1)
+        
+        last_kwh = 0.0
+        for idx, m in enumerate(time_intervals_min):
+            t_str = f"{m//60:02d}:{m%60:02d}:00"
+            if m == 0:
+                sub = df_vcom_energy[df_vcom_energy['minutes'] == 0]
+            else:
+                sub = df_vcom_energy[df_vcom_energy['interval_15'] == m]
+                
+            if len(sub) > 0:
+                last_kwh = float(sub['cum_kwh_plant'].mean())
+                
+            cumulative_mwh = cumulative_mwh_base + (last_kwh / 1000.0)
+            rows.append({
+                "Colonna1": "MW(AA,MW(01,Data_Mod_POC_Meter.M30))",
+                "Colonna2": " Energia attiva prod.",
+                "Colonna3": round(cumulative_mwh, 4),
+                "Colonna4": "MWh",
+                "Colonna5": date_val,
+                "Colonna6": f"{t_str}.000"
+            })
+    else:
+        p_cols = [c for c in df_vcom_prod.columns if 'potenza [kw]' in c.lower() or 'potenza' in c.lower()]
+        meter_col = p_cols[0] if p_cols else None
+        
+        running_mwh = cumulative_mwh_base
+        for idx, m in enumerate(time_intervals_min):
+            t_str = f"{m//60:02d}:{m%60:02d}:00"
+            if m == 0:
+                sub = df_vcom_prod[df_vcom_prod['minutes'] == 0]
+            else:
+                sub = df_vcom_prod[df_vcom_prod['interval_15'] == m]
+                
+            power_kw = sub[meter_col].mean() if (meter_col and len(sub) > 0) else 0.0
+            energy_kwh = max(0.0, float(power_kw) * 0.25)
+            energy_mwh = energy_kwh / 1000.0
             
-        rows.append({
-            "Colonna1": "MW(AA,MW(01,Data_Mod_POC_Meter.M30))",
-            "Colonna2": " Energia attiva prod.",
-            "Colonna3": round(cumulative_mwh, 4),
-            "Colonna4": "MWh",
-            "Colonna5": date_val,
-            "Colonna6": f"{t_str}.000"
-        })
+            if m > 0:
+                running_mwh += energy_mwh
+                
+            rows.append({
+                "Colonna1": "MW(AA,MW(01,Data_Mod_POC_Meter.M30))",
+                "Colonna2": " Energia attiva prod.",
+                "Colonna3": round(running_mwh, 4),
+                "Colonna4": "MWh",
+                "Colonna5": date_val,
+                "Colonna6": f"{t_str}.000"
+            })
         
     df_out = pd.DataFrame(rows)
     out_file = os.path.join(output_folder, "SATAC_Meter_15Min.xlsx")
