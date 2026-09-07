@@ -5,7 +5,20 @@ GET SRL
 ===============================================================================
 STORICO VERSIONI / CHANGELOG
 Aggiungere una voce in cima ad ogni modifica: data (AAAA-MM-GG) e cosa cambia.
+
+ULTIMO AGGIORNAMENTO / LAST UPDATE: 2026-09-02 16:10
 ===============================================================================
+
+v15.1 - 2026-09-02 (Bugfix COM & Chiusura Forzata Excel)
+  * Risolto errore PyInstaller 'No module named win32timezone' durante
+    l'aggiornamento e la sincronizzazione del file Madre via Excel COM.
+  * Introdotta chiusura forzata automatica delle istanze/finestre di Excel
+    aperte in conflitto (sia via ROT con matching flessibile del nome file
+    che tramite terminazione mirata dei processi EXCEL.EXE bloccanti).
+  * Aggiunta opzione configurabile 'force_close_excel' in Impostazioni Avanzate
+    e DEFAULT_SETTINGS (predefinita: True).
+  * Spec file aggiornato con hiddenimport 'win32timezone' e ricompilazione
+    eseguibile standalone 'PR_Calculator_v15.exe'.
 
 v15.0 - 2026-09-01 (UI/UX)
   * Console Live Log di nuovo visibile: era finita completamente fuori dalla
@@ -81,6 +94,10 @@ import numpy as np
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from VCOM_to_SCADA import convert_vcom_to_scada
+try:
+    import win32timezone  # Required by pywintypes for datetime conversions in COM
+except ImportError:
+    pass
 _excel_app = None
 
 def get_resource_path(relative_path):
@@ -104,6 +121,7 @@ DEFAULT_SETTINGS = {
     "deg_start_month": 2,
     "sync_mother": True,     # run the (slow) Madre sync after the calculation
     "backup_mother": True,   # snapshot the Madre file before modifying it
+    "force_close_excel": True, # force-close conflicting open Excel workbooks/instances
     "threshold": "50",
     "diff_threshold": "10",
     "poa_method": "average",
@@ -448,6 +466,7 @@ class PRCalculatorGUI:
         # Advanced options (edited through the Opzioni Avanzate dialog)
         self.sync_mother_var = tk.BooleanVar(value=bool(self.cfg["sync_mother"]))
         self.backup_mother_var = tk.BooleanVar(value=bool(self.cfg["backup_mother"]))
+        self.force_close_excel_var = tk.BooleanVar(value=bool(self.cfg.get("force_close_excel", True)))
         # Safe-stop flag: set by the Interrompi button, polled by the worker at checkpoints
         # between days so the in-flight day finishes writing before we halt.
         self.stop_requested = threading.Event()
@@ -1222,6 +1241,7 @@ class PRCalculatorGUI:
             "pvsyst_monthly": {str(k): v for k, v in self.pvsyst_monthly.items()},
             "sync_mother": bool(self.sync_mother_var.get()),
             "backup_mother": bool(self.backup_mother_var.get()),
+            "force_close_excel": bool(self.force_close_excel_var.get()),
             "threshold": self.threshold_var.get(),
             "diff_threshold": self.diff_threshold_var.get(),
             "poa_method": self.poa_method_var.get(),
@@ -1276,15 +1296,18 @@ class PRCalculatorGUI:
         ttk.Checkbutton(body, variable=self.backup_mother_var, style="Opt.TCheckbutton",
                         text="Crea un backup del file Madre prima di modificarlo (ultimi 5 conservati)"
                         ).grid(row=5, column=0, columnspan=4, sticky="w")
+        ttk.Checkbutton(body, variable=self.force_close_excel_var, style="Opt.TCheckbutton",
+                        text="Chiudi forzatamente file Excel aperti in conflitto (evita errori di file bloccato)"
+                        ).grid(row=6, column=0, columnspan=4, sticky="w")
         
         # --- PVSyst monthly targets ---
         tk.Label(body, text="Target PR PVSyst mensili (anno 1, non degradati)",
                  bg=self.bg_color, fg=self.accent_color,
-                 font=("Segoe UI Semibold", 11, "bold")).grid(row=6, column=0, columnspan=4, sticky="w", pady=(16, 6))
+                 font=("Segoe UI Semibold", 11, "bold")).grid(row=7, column=0, columnspan=4, sticky="w", pady=(16, 6))
         months_short = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
         pr_vars = {}
         grid_pr = tk.Frame(body, bg=self.bg_color)
-        grid_pr.grid(row=7, column=0, columnspan=4, sticky="w")
+        grid_pr.grid(row=8, column=0, columnspan=4, sticky="w")
         for idx, name in enumerate(months_short, start=1):
             v = tk.StringVar(value=f"{self.pvsyst_monthly[idx]:.3f}".replace(".", ","))
             pr_vars[idx] = v
@@ -1295,7 +1318,7 @@ class PRCalculatorGUI:
             ttk.Entry(cell, textvariable=v, width=7, font=("Segoe UI", 10)).pack(anchor="w")
         
         status = tk.Label(body, text="", bg=self.bg_color, fg=self.muted_text, font=("Segoe UI", 9))
-        status.grid(row=8, column=0, columnspan=4, sticky="w", pady=(12, 0))
+        status.grid(row=9, column=0, columnspan=4, sticky="w", pady=(12, 0))
         
         def apply_and_save():
             try:
@@ -1338,12 +1361,13 @@ class PRCalculatorGUI:
             sm_var.set(str(DEFAULT_SETTINGS["deg_start_month"]))
             self.sync_mother_var.set(DEFAULT_SETTINGS["sync_mother"])
             self.backup_mother_var.set(DEFAULT_SETTINGS["backup_mother"])
+            self.force_close_excel_var.set(DEFAULT_SETTINGS.get("force_close_excel", True))
             for m, var in pr_vars.items():
                 var.set(f"{DEFAULT_SETTINGS['pvsyst_monthly'][str(m)]:.3f}".replace(".", ","))
             status.config(text="Valori predefiniti ripristinati (non ancora salvati).", fg=self.muted_text)
         
         btns = tk.Frame(body, bg=self.bg_color)
-        btns.grid(row=9, column=0, columnspan=4, sticky="e", pady=(14, 0))
+        btns.grid(row=10, column=0, columnspan=4, sticky="e", pady=(14, 0))
         ttk.Button(btns, text="Ripristina predefiniti", style="Secondary.TButton",
                    command=restore_defaults).pack(side="left", padx=(0, 8))
         ttk.Button(btns, text="Annulla", style="Secondary.TButton", command=win.destroy).pack(side="left", padx=(0, 8))
@@ -1920,20 +1944,18 @@ class PRCalculatorGUI:
                     continue
                 if not disp:
                     continue
-                # Match a full path precisely; fall back to bare-name matches only.
-                if ('\\' in disp) or ('/' in disp):
-                    try:
-                        same = (target_full is not None and
-                                os.path.normcase(os.path.abspath(disp)) == target_full)
-                    except Exception:
-                        same = False
-                else:
-                    same = (disp.strip().lower() == target_base)
+                # Match by basename (e.g. "00 pr_recalculation_agos.xlsx") or by normalized full path
+                disp_base = os.path.basename(disp).strip().lower()
+                disp_full = None
+                try:
+                    disp_full = os.path.normcase(os.path.abspath(disp))
+                except Exception:
+                    pass
+                same = (disp_base == target_base) or (target_full and disp_full and target_full == disp_full)
                 if not same:
                     continue
                 try:
                     obj = rot.GetObject(moniker)
-                    # GetObject returns a raw IUnknown; QueryInterface to IDispatch first.
                     wb = win32com.client.Dispatch(obj.QueryInterface(pythoncom.IID_IDispatch))
                     if exclude_hwnd is not None:
                         try:
@@ -1941,16 +1963,34 @@ class PRCalculatorGUI:
                                 continue  # never close our own automation instance
                         except Exception:
                             pass
-                    # NB: do NOT probe wb.FullName first -- a stuck instance (e.g. blocked
-                    # on a modal) errors on any property read, which would wrongly skip the
-                    # Close. Just attempt the Close; the path match above already targeted it.
                     wb.Close(SaveChanges=False)
                     closed_any = True
-                    print(f"DEBUG: Workbook '{os.path.basename(disp)}' chiuso in un'altra istanza di Excel.")
+                    print(f"DEBUG: Workbook '{os.path.basename(disp)}' chiuso in un'altra istanza di Excel via ROT.")
                 except Exception as ce:
                     print(f"DEBUG: impossibile chiudere '{disp}' via ROT: {ce}")
         except Exception as e:
             print(f"DEBUG: enumerazione ROT fallita: {e}")
+
+        # In addition to ROT, also scan visible/active Excel applications:
+        try:
+            active_excel = win32com.client.GetActiveObject("Excel.Application")
+            if active_excel:
+                try:
+                    act_hwnd = int(active_excel.Hwnd)
+                except Exception:
+                    act_hwnd = None
+                if exclude_hwnd is None or act_hwnd != int(exclude_hwnd):
+                    for wb in list(active_excel.Workbooks):
+                        try:
+                            if wb.Name.strip().lower() == target_base:
+                                wb.Close(SaveChanges=False)
+                                closed_any = True
+                                print(f"DEBUG: Workbook '{wb.Name}' chiuso nell'istanza Excel attiva.")
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
         return closed_any
 
     def _pid_from_excel_app(self, excel_app):
@@ -1963,12 +2003,10 @@ class PRCalculatorGUI:
         except Exception:
             return None
 
-    def _kill_processes_locking_file(self, file_path, exclude_pids=()):
-        """Last resort when a graceful ROT close fails: terminate the EXCEL.EXE process(es)
-        that still hold an OS lock on `file_path` (typically a stuck/orphaned automation
-        instance frozen on a modal). Scoped tightly -- only Excel processes with THIS exact
-        file, or its Office '~$' owner file, open are killed; our own PIDs are excluded so
-        we never kill the running automation instance or this Python process."""
+    def _kill_processes_locking_file(self, file_path, exclude_pids=(), kill_all_external=False):
+        """Terminate external EXCEL.EXE process(es) holding `file_path`.
+        If kill_all_external is True or psutil cannot detect network file handles,
+        terminates any external EXCEL.EXE process (excluding our own automation PID)."""
         try:
             import psutil
         except Exception as e:
@@ -1982,12 +2020,15 @@ class PRCalculatorGUI:
         owner_base = ("~$" + os.path.basename(file_path)).lower()
         exclude = {os.getpid()} | {int(p) for p in exclude_pids if p}
         killed = []
+        external_excel_procs = []
+
         for proc in psutil.process_iter(['pid', 'name']):
             try:
                 if (proc.info.get('name') or '').lower() != 'excel.exe':
                     continue
                 if proc.info['pid'] in exclude:
                     continue
+                external_excel_procs.append(proc)
                 try:
                     ofiles = proc.open_files()
                 except Exception:
@@ -2011,6 +2052,18 @@ class PRCalculatorGUI:
                 continue
             except Exception:
                 continue
+
+        # If no specific process was identified via open_files (common for SMB/UNC network shares where
+        # Windows handles are opaque to user-mode open_files()), and kill_all_external is True:
+        if not killed and kill_all_external and external_excel_procs:
+            print(f"DEBUG: Terminazione di {len(external_excel_procs)} processo/i Excel esterno/i per sblocco file '{target_base}'...")
+            for proc in external_excel_procs:
+                try:
+                    proc.kill()
+                    killed.append(proc.pid)
+                except Exception:
+                    pass
+
         if killed:
             print(f"DEBUG: Terminato/i processo/i Excel bloccante/i '{target_base}': PID {killed}")
         return len(killed) > 0
@@ -2063,7 +2116,7 @@ class PRCalculatorGUI:
                           "Nuovo tentativo dopo chiusura forzata...")
                     # If a stuck instance won't release via ROT, kill the process holding
                     # the file (never our own automation instance) before the next attempt.
-                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,))
+                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
                     _time.sleep(1.0)
 
             # Last resort: save to a temp file next to the target, then atomically replace.
@@ -2081,7 +2134,7 @@ class PRCalculatorGUI:
                 pass
             # Make sure nothing holds the real target, then swap the temp file in.
             self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
-            self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,))
+            self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
             os.replace(tmp_path, abs_path)
             print(f"[{date_str}] File '{os.path.basename(abs_path)}' salvato tramite "
                   "copia temporanea e sostituzione atomica (il file era aperto altrove).")
@@ -2100,17 +2153,18 @@ class PRCalculatorGUI:
 
     def _open_workbook_writable(self, excel_app, abs_path, max_prompts=2):
         """Open a workbook for writing. If it is locked (opens read-only) because another
-        Excel window -- or a stuck/orphaned automation instance -- holds it, ask the user
-        for permission, then escalate: (1) gracefully close the workbook in the other
-        instance via the ROT, and if that fails (2) kill the EXCEL.EXE process still
-        holding the file. Retries after each step. Raises RuntimeError if the user declines
-        or it stays locked."""
+        Excel window -- or a stuck/orphaned automation instance -- holds it:
+        If force_close_excel setting is enabled, automatically force-closes external instances
+        and terminates locking processes. Otherwise asks the user and escalates."""
         own_hwnd = None
         try:
             own_hwnd = int(excel_app.Hwnd)
         except Exception:
             pass
         own_pid = self._pid_from_excel_app(excel_app)
+
+        auto_force = getattr(self, "force_close_excel_var", None)
+        is_auto_force = auto_force.get() if auto_force is not None else True
 
         def _reopen():
             return excel_app.Workbooks.Open(abs_path, UpdateLinks=0)
@@ -2123,33 +2177,38 @@ class PRCalculatorGUI:
                 wb.Close(SaveChanges=False)   # release our own read-only handle first
             except Exception:
                 pass
-            proceed = self._ask_yes_no_on_gui(
-                "File aperto in Excel",
-                f"Il file:\n\n{os.path.basename(abs_path)}\n\n"
-                "è aperto in un'altra finestra di Excel e impedisce il salvataggio.\n\n"
-                "Vuoi chiuderlo ora e continuare?\n\n"
-                "ATTENZIONE: eventuali modifiche non salvate in quel file andranno perse."
-            )
-            if not proceed:
-                raise RuntimeError(
-                    f"Elaborazione annullata dall'utente: il file '{os.path.basename(abs_path)}' "
-                    "è aperto in Excel e non è stato chiuso."
+
+            if is_auto_force:
+                print(f"DEBUG: File '{os.path.basename(abs_path)}' aperto in sola lettura (bloccato altrove). Chiusura forzata automatica in corso...")
+                closed = self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
+                if not closed:
+                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
+            else:
+                proceed = self._ask_yes_no_on_gui(
+                    "File aperto in Excel",
+                    f"Il file:\n\n{os.path.basename(abs_path)}\n\n"
+                    "è aperto in un'altra finestra di Excel e impedisce il salvataggio.\n\n"
+                    "Vuoi chiuderlo forzatamente ora e continuare?\n\n"
+                    "ATTENZIONE: eventuali modifiche non salvate in quel file andranno perse."
                 )
-            # (1) graceful: close the workbook in any OTHER Excel instance.
-            closed = self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
-            # (2) aggressive: a stuck instance won't respond to Close -- kill the process
-            #     that still holds the file (never our own automation instance / this PID).
-            if not closed:
-                self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,))
+                if not proceed:
+                    raise RuntimeError(
+                        f"Elaborazione annullata dall'utente: il file '{os.path.basename(abs_path)}' "
+                        "è aperto in Excel e non è stato chiuso."
+                    )
+                closed = self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
+                if not closed:
+                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
+
             wb = _reopen()
 
         if getattr(wb, "ReadOnly", False):
-            # Final escalation before giving up: force-kill the locking process and retry once.
+            # Final escalation before giving up: force-kill all external Excel processes and retry once.
             try:
                 wb.Close(SaveChanges=False)
             except Exception:
                 pass
-            if self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,)):
+            if self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True):
                 wb = _reopen()
 
         if getattr(wb, "ReadOnly", False):
