@@ -97,7 +97,7 @@ from VCOM_to_SCADA import convert_vcom_to_scada
 try:
     import win32timezone  # Required by pywintypes for datetime conversions in COM
 except ImportError:
-    pass
+    print("WARNING: 'win32timezone' non disponibile; le conversioni datetime via COM potrebbero fallire.")
 _excel_app = None
 
 def get_resource_path(relative_path):
@@ -1944,14 +1944,20 @@ class PRCalculatorGUI:
                     continue
                 if not disp:
                     continue
-                # Match by basename (e.g. "00 pr_recalculation_agos.xlsx") or by normalized full path
+                # Match precisely: when the ROT entry carries a path, require full-path
+                # equality (a backup copy with the same basename in another folder
+                # must NOT match). Fall back to basename only when no path is
+                # available (bare-name ROT entry).
                 disp_base = os.path.basename(disp).strip().lower()
-                disp_full = None
-                try:
-                    disp_full = os.path.normcase(os.path.abspath(disp))
-                except Exception:
-                    pass
-                same = (disp_base == target_base) or (target_full and disp_full and target_full == disp_full)
+                has_path = ('\\' in disp) or ('/' in disp)
+                if has_path and target_full:
+                    try:
+                        disp_full = os.path.normcase(os.path.abspath(disp))
+                    except Exception:
+                        disp_full = None
+                    same = bool(disp_full and target_full == disp_full)
+                else:
+                    same = (disp_base == target_base)
                 if not same:
                     continue
                 try:
@@ -1971,7 +1977,9 @@ class PRCalculatorGUI:
         except Exception as e:
             print(f"DEBUG: enumerazione ROT fallita: {e}")
 
-        # In addition to ROT, also scan visible/active Excel applications:
+        # In addition to ROT, also scan visible/active Excel applications.
+        # Require full-path match when available; basename alone is not enough
+        # (a backup copy with the same name in another folder must not be closed).
         try:
             active_excel = win32com.client.GetActiveObject("Excel.Application")
             if active_excel:
@@ -1982,7 +1990,19 @@ class PRCalculatorGUI:
                 if exclude_hwnd is None or act_hwnd != int(exclude_hwnd):
                     for wb in list(active_excel.Workbooks):
                         try:
-                            if wb.Name.strip().lower() == target_base:
+                            wb_full = None
+                            try:
+                                wb_full = os.path.normcase(os.path.abspath(wb.FullName))
+                            except Exception:
+                                wb_full = None
+                            if target_full and wb_full:
+                                same_wb = (wb_full == target_full)
+                            else:
+                                try:
+                                    same_wb = (wb.Name.strip().lower() == target_base)
+                                except Exception:
+                                    same_wb = False
+                            if same_wb:
                                 wb.Close(SaveChanges=False)
                                 closed_any = True
                                 print(f"DEBUG: Workbook '{wb.Name}' chiuso nell'istanza Excel attiva.")
@@ -2004,9 +2024,14 @@ class PRCalculatorGUI:
             return None
 
     def _kill_processes_locking_file(self, file_path, exclude_pids=(), kill_all_external=False):
-        """Terminate external EXCEL.EXE process(es) holding `file_path`.
-        If kill_all_external is True or psutil cannot detect network file handles,
-        terminates any external EXCEL.EXE process (excluding our own automation PID)."""
+        """Terminate external EXCEL.EXE process(es) holding `file_path` (precise-handle match).
+
+        Only Excel processes with THIS exact file (or its Office '~$' owner file)
+        open are killed; our own PIDs are excluded. `kill_all_external=True` is a
+        destructive fallback (kills every external EXCEL.EXE, losing unsaved work
+        in unrelated workbooks, common on SMB/UNC where handles are opaque) and
+        must only be used when explicitly gated by the `force_close_excel` setting.
+        Default is False (precise-handle-only)."""
         try:
             import psutil
         except Exception as e:
@@ -2076,13 +2101,23 @@ class PRCalculatorGUI:
         prompt is not covered by DisplayAlerts. This helper hardens the app against modal
         dialogs, force-closes any EXTERNAL copy of the file (never our own instance)
         before each attempt, retries, and finally falls back to an atomic temp-file
-        replace. Raises RuntimeError only if every strategy fails."""
+        replace. Raises RuntimeError only if every strategy fails.
+
+        Force-close/kill escalation is gated by the `force_close_excel` setting
+        (read from thread-safe `self.cfg`, snapshotted on the GUI thread before the
+        worker starts). Process termination is precise-handle-only
+        (`kill_all_external=False`) so unrelated open workbooks are never killed."""
         import time as _time
         try:
             own_hwnd = int(excel_app.Hwnd)
         except Exception:
             own_hwnd = None
         own_pid = self._pid_from_excel_app(excel_app)
+        # Thread-safe: self.cfg is snapshotted on the GUI thread via _collect_settings().
+        try:
+            allow_force = bool(self.cfg.get("force_close_excel", True))
+        except Exception:
+            allow_force = True
 
         # Suppress any interactive/modal prompt so a locked save raises instead of hanging.
         saved_flags = {}
@@ -2101,22 +2136,26 @@ class PRCalculatorGUI:
         try:
             for i in range(attempts):
                 # Evict any external window holding the file before trying to save.
-                try:
-                    if self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd):
-                        print(f"[{date_str}] Copia esterna aperta di "
-                              f"'{os.path.basename(abs_path)}' chiusa forzatamente prima del salvataggio.")
-                except Exception:
-                    pass
+                if allow_force:
+                    try:
+                        if self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd):
+                            print(f"[{date_str}] Copia esterna aperta di "
+                                  f"'{os.path.basename(abs_path)}' chiusa forzatamente prima del salvataggio.")
+                    except Exception:
+                        pass
                 try:
                     wb.Save()
                     return True
                 except Exception as e:
                     last_err = e
+                    if not allow_force:
+                        raise
                     print(f"[{date_str}] DEBUG: Salvataggio bloccato (tentativo {i + 1}/{attempts}): {e}. "
                           "Nuovo tentativo dopo chiusura forzata...")
                     # If a stuck instance won't release via ROT, kill the process holding
                     # the file (never our own automation instance) before the next attempt.
-                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
+                    # Precise-handle-only: never kill all external Excel processes.
+                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=False)
                     _time.sleep(1.0)
 
             # Last resort: save to a temp file next to the target, then atomically replace.
@@ -2133,8 +2172,9 @@ class PRCalculatorGUI:
             except Exception:
                 pass
             # Make sure nothing holds the real target, then swap the temp file in.
-            self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
-            self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
+            if allow_force:
+                self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
+                self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=False)
             os.replace(tmp_path, abs_path)
             print(f"[{date_str}] File '{os.path.basename(abs_path)}' salvato tramite "
                   "copia temporanea e sostituzione atomica (il file era aperto altrove).")
@@ -2145,11 +2185,14 @@ class PRCalculatorGUI:
                 f"forzata delle copie aperte: {last_err or e2}"
             )
         finally:
-            # Restore Interactive so later opens on the shared app are not blocked.
-            try:
-                excel_app.Interactive = True if saved_flags.get("Interactive") is None else saved_flags["Interactive"]
-            except Exception:
-                pass
+            # Restore all suppressed flags so the shared automation instance is left clean.
+            for prop, saved in saved_flags.items():
+                if saved is None:
+                    continue
+                try:
+                    setattr(excel_app, prop, saved)
+                except Exception:
+                    pass
 
     def _open_workbook_writable(self, excel_app, abs_path, max_prompts=2):
         """Open a workbook for writing. If it is locked (opens read-only) because another
@@ -2163,8 +2206,12 @@ class PRCalculatorGUI:
             pass
         own_pid = self._pid_from_excel_app(excel_app)
 
-        auto_force = getattr(self, "force_close_excel_var", None)
-        is_auto_force = auto_force.get() if auto_force is not None else True
+        # Thread-safe: read from self.cfg (snapshotted on GUI thread), never from
+        # Tkinter BooleanVar which must only be touched on the main thread.
+        try:
+            is_auto_force = bool(self.cfg.get("force_close_excel", True))
+        except Exception:
+            is_auto_force = True
 
         def _reopen():
             return excel_app.Workbooks.Open(abs_path, UpdateLinks=0)
@@ -2182,7 +2229,7 @@ class PRCalculatorGUI:
                 print(f"DEBUG: File '{os.path.basename(abs_path)}' aperto in sola lettura (bloccato altrove). Chiusura forzata automatica in corso...")
                 closed = self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
                 if not closed:
-                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
+                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=False)
             else:
                 proceed = self._ask_yes_no_on_gui(
                     "File aperto in Excel",
@@ -2198,17 +2245,18 @@ class PRCalculatorGUI:
                     )
                 closed = self._force_close_workbook(abs_path, exclude_hwnd=own_hwnd)
                 if not closed:
-                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True)
+                    self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=False)
 
             wb = _reopen()
 
         if getattr(wb, "ReadOnly", False):
-            # Final escalation before giving up: force-kill all external Excel processes and retry once.
+            # Final escalation before giving up: precise-handle kill only, then retry once.
+            # Never kill all external Excel instances (would lose unsaved work elsewhere).
             try:
                 wb.Close(SaveChanges=False)
             except Exception:
                 pass
-            if self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=True):
+            if self._kill_processes_locking_file(abs_path, exclude_pids=(own_pid,), kill_all_external=False):
                 wb = _reopen()
 
         if getattr(wb, "ReadOnly", False):

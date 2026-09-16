@@ -124,7 +124,21 @@ def parse_scada_weather_file(file_path):
                 pass
 
         if d_key:
-            num_val = float(val) if val is not None else 0.0
+            # Robust numeric parsing: skip missing/non-numeric instead of crashing.
+            # Handles "", "n/a", None and Italian decimals like "65,2".
+            if val is None:
+                continue
+            if isinstance(val, (int, float)):
+                num_val = float(val)
+            else:
+                txt = str(val).strip()
+                if not txt or txt.lower() in ("n/a", "na", "nan", "none", "-", "--"):
+                    continue
+                txt = txt.replace(",", ".")
+                try:
+                    num_val = float(txt)
+                except ValueError:
+                    continue
             data[(d_key, var_type)] = num_val
 
     wb.close()
@@ -155,6 +169,24 @@ def extract_year_month_from_folder(folder_path):
     raise ValueError(f"Impossibile determinare anno e mese dalla cartella: {folder_path}")
 
 
+def _to_float_safe(value, default=0.0):
+    """Best-effort float conversion; returns default for None/''/'n/a'/'65,2' etc."""
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        try:
+            return float(value)
+        except (ValueError, OverflowError):
+            return default
+    txt = str(value).strip().replace(",", ".")
+    if not txt or txt.lower() in ("n/a", "na", "nan", "none", "-", "--"):
+        return default
+    try:
+        return float(txt)
+    except ValueError:
+        return default
+
+
 def compute_combined_humidity(tx1_val, tx3_val, var_type, acceptance_rate=0.05):
     """
     Compute combined humidity value according to standard Mazara rules:
@@ -163,8 +195,8 @@ def compute_combined_humidity(tx1_val, tx3_val, var_type, acceptance_rate=0.05):
     - Absolute humidity: threshold is acceptance_rate * TX1 (5% of TX1).
       If |TX3 - TX1| > 0.05 * TX1, take MAX(TX1, TX3), else AVERAGE(TX1, TX3).
     """
-    t1 = float(tx1_val or 0.0)
-    t3 = float(tx3_val or 0.0)
+    t1 = _to_float_safe(tx1_val, 0.0)
+    t3 = _to_float_safe(tx3_val, 0.0)
 
     if var_type == "relative":
         diff = abs(t1 - t3)
@@ -277,7 +309,7 @@ def generate_humidity_report(month_folder, output_path=None, acceptance_rate=0.0
 
     # C5: Absolute Humidity header
     cell_c5 = ws_summary["C5"]
-    cell_c5.value = "Absolute Humidity\n(max/average) \n[g/m2]"
+    cell_c5.value = "Absolute Humidity\n(max/average) \n[g/m³]"
     cell_c5.font = font_regular
     cell_c5.alignment = align_center
     cell_c5.fill = fill_header_blue
@@ -387,7 +419,9 @@ def generate_humidity_report(month_folder, output_path=None, acceptance_rate=0.0
     ws_month["A3"].font = font_header_bold
     ws_month["A3"].alignment = align_left
     ws_month.merge_cells("I3:K3")
-    ws_month["I3"] = f"=COUNT({table_name}[[#All],[Colonna1]])"
+    # Table columns are auto-named from the header row ("Data", ...), so count
+    # data rows via the real column name instead of the non-existent Colonna1.
+    ws_month["I3"] = f"=ROWS({table_name}[#Data])"
     ws_month["I3"].font = font_bold
     ws_month["I3"].alignment = align_center_nowrap
 
@@ -407,7 +441,7 @@ def generate_humidity_report(month_folder, output_path=None, acceptance_rate=0.0
     ws_month["A6"].alignment = align_left
     ws_month.merge_cells("I6:K6")
     ws_month["I6"] = 0.03
-    ws_month["I6"].number_format = "0.00"
+    ws_month["I6"].number_format = "0.00%"
     ws_month["I6"].font = font_bold
     ws_month["I6"].alignment = align_center_nowrap
 
@@ -417,7 +451,9 @@ def generate_humidity_report(month_folder, output_path=None, acceptance_rate=0.0
     ws_month["A7"].alignment = align_left
     ws_month.merge_cells("I7:K7")
     ws_month["I7"] = acceptance_rate
-    ws_month["I7"].number_format = "0.00"
+    # acceptance_rate is a fraction (0.05 = 5%); percent format displays correctly
+    # while formulas ($I$7*100, $I$7*E) keep working on the underlying fraction.
+    ws_month["I7"].number_format = "0.00%"
     ws_month["I7"].font = font_bold
     ws_month["I7"].alignment = align_center_nowrap
 
@@ -450,9 +486,9 @@ def generate_humidity_report(month_folder, output_path=None, acceptance_rate=0.0
         "Relative Humidity\nTX1\n[%]",
         "Relative Humidity\nTX3\n[%]",
         "Relative Humidity\n(max/average)\n[%]",
-        "Absolute Humidity\nTX1\n[g/m2]",
-        "Absolute Humidity\nTX3\n[g/m2]",
-        "Absolute Humidity\n(max/average) \n[g/m2]"
+        "Absolute Humidity\nTX1\n[g/m³]",
+        "Absolute Humidity\nTX3\n[g/m³]",
+        "Absolute Humidity\n(max/average) \n[g/m³]"
     ]
 
     for col_idx, h_text in enumerate(headers, start=1):
@@ -781,11 +817,43 @@ def launch_gui():
 
     last_output_dir = [None]
 
+    def _ui(fn, *args, **kwargs):
+        """Marshal a Tk call onto the main thread (Tkinter is not thread-safe)."""
+        try:
+            if threading.current_thread() is threading.main_thread():
+                fn(*args, **kwargs)
+            else:
+                root.after(0, lambda: fn(*args, **kwargs))
+        except Exception:
+            pass
+
+    def _ask_threadsafe(kind, title, message):
+        """Blocking messagebox safe to call from a worker thread (marshals via after)."""
+        import queue as _queue
+        if threading.current_thread() is threading.main_thread():
+            return getattr(messagebox, kind)(title, message)
+        q = _queue.Queue()
+        def _do():
+            try:
+                q.put(getattr(messagebox, kind)(title, message))
+            except Exception:
+                q.put(False if kind in ("askyesno", "askokcancel") else None)
+        root.after(0, _do)
+        return q.get()
+
     def log(msg):
-        text_log.configure(state="normal")
-        text_log.insert("end", str(msg) + "\n")
-        text_log.see("end")
-        text_log.configure(state="disabled")
+        def _do():
+            try:
+                text_log.configure(state="normal")
+                text_log.insert("end", str(msg) + "\n")
+                text_log.see("end")
+                text_log.configure(state="disabled")
+            except Exception:
+                pass
+        if threading.current_thread() is threading.main_thread():
+            _do()
+        else:
+            root.after(0, _do)
 
     def run_generate_single():
         custom_p = custom_folder_var.get().strip()
@@ -799,8 +867,8 @@ def launch_gui():
             target_folder = os.path.join(base_dir_var.get(), selected_m)
 
         def worker():
-            btn_gen_one.config(state="disabled")
-            btn_gen_all.config(state="disabled")
+            _ui(btn_gen_one.config, state="disabled")
+            _ui(btn_gen_all.config, state="disabled")
             log(f"\n==================================================")
             log(f"Avvio generazione report per: {os.path.basename(target_folder)}")
             log(f"Percorso: {target_folder}")
@@ -812,14 +880,14 @@ def launch_gui():
                 log(f"  Giorni con dati: {res['operational_days']}/{res['num_days']}")
                 log(f"  Umidità Relativa Media: {res['avg_rel_humidity']:.2f}%")
                 log(f"  Umidità Assoluta Media: {res['avg_abs_humidity']:.2f} g/m³")
-                btn_open_folder.config(state="normal")
-                messagebox.showinfo("Completato", f"Report Umidità generato con successo:\n{os.path.basename(res['output_path'])}")
+                _ui(btn_open_folder.config, state="normal")
+                _ask_threadsafe("showinfo", "Completato", f"Report Umidità generato con successo:\n{os.path.basename(res['output_path'])}")
             except Exception as e:
                 log(f"[ERRORE] Generazione fallita: {e}")
-                messagebox.showerror("Errore", f"Errore durante la generazione:\n{e}")
+                _ask_threadsafe("showerror", "Errore", f"Errore durante la generazione:\n{e}")
             finally:
-                btn_gen_one.config(state="normal")
-                btn_gen_all.config(state="normal")
+                _ui(btn_gen_one.config, state="normal")
+                _ui(btn_gen_all.config, state="normal")
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -837,22 +905,22 @@ def launch_gui():
             return
 
         def worker():
-            btn_gen_one.config(state="disabled")
-            btn_gen_all.config(state="disabled")
+            _ui(btn_gen_one.config, state="disabled")
+            _ui(btn_gen_all.config, state="disabled")
             log(f"\n==================================================")
             log(f"Avvio elaborazione BATCH per tutti i mesi in:\n{b_dir}")
             try:
                 results = generate_all_reports(b_dir, log_callback=log)
                 if results:
                     last_output_dir[0] = os.path.dirname(results[-1]["output_path"])
-                    btn_open_folder.config(state="normal")
-                    messagebox.showinfo("Completato", f"Elaborazione batch completata!\n{len(results)} report generati.")
+                    _ui(btn_open_folder.config, state="normal")
+                    _ask_threadsafe("showinfo", "Completato", f"Elaborazione batch completata!\n{len(results)} report generati.")
             except Exception as e:
                 log(f"[ERRORE BATCH] {e}")
-                messagebox.showerror("Errore", f"Errore durante l'elaborazione batch:\n{e}")
+                _ask_threadsafe("showerror", "Errore", f"Errore durante l'elaborazione batch:\n{e}")
             finally:
-                btn_gen_one.config(state="normal")
-                btn_gen_all.config(state="normal")
+                _ui(btn_gen_one.config, state="normal")
+                _ui(btn_gen_all.config, state="normal")
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -951,13 +1019,25 @@ def launch_gui():
     root.mainloop()
 
 
-def main():
+def normalize_month_arg(value, default_prev_month):
+    """Normalize --month to 'YYYY MM'. Accepts '2026 08', '2026-08', '202608', '2026/08'."""
+    if not value:
+        return default_prev_month
+    v = str(value).strip()
+    m = re.search(r"(\d{4})\s*[-_/.\s]*\s*(\d{1,2})", v)
+    if m:
+        return f"{int(m.group(1)):04d} {int(m.group(2)):02d}"
+    return v
+
+
+def main(argv=None):
     default_prev_month = get_previous_month_str()
     parser = argparse.ArgumentParser(
         description="SCADA Humidity Report Generator - Generates Excel monthly humidity reports from TS_01 and TS_03 weather data."
     )
     parser.add_argument("--month", type=str, nargs="?", const=default_prev_month,
-                        help=f"Month to process (e.g. '2026 08'). Defaults to previous month ({default_prev_month}) if passed without value.")
+                        help=f"Month to process: 'YYYY MM' (quote it: --month \"2026 08\"), "
+                             f"or '2026-08' / '202608'. Defaults to previous month ({default_prev_month}) if passed without value.")
     parser.add_argument("--folder", type=str, help="Explicit path to a month folder containing TS_01 and TS_03 files")
     parser.add_argument("--output", type=str, help="Explicit output .xlsx file path")
     parser.add_argument("--all", action="store_true", help="Process all available month folders in base directory")
@@ -965,7 +1045,7 @@ def main():
     parser.add_argument("--rate", type=float, default=0.05, help="Humidity acceptance rate (default: 0.05 = 5%%)")
     parser.add_argument("--gui", action="store_true", help="Launch interactive graphical interface")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.gui or (len(sys.argv) == 1 and ("DISPLAY" in os.environ or sys.platform == "win32")):
         try:
@@ -984,9 +1064,10 @@ def main():
         print(f"     Media Umidità Relativa: {res['avg_rel_humidity']:.2f}%")
         print(f"     Media Umidità Assoluta: {res['avg_abs_humidity']:.2f} g/m³")
     elif args.month:
-        month_folder = os.path.join(args.base_dir, args.month)
+        month_arg = normalize_month_arg(args.month, default_prev_month)
+        month_folder = os.path.join(args.base_dir, month_arg)
         res = generate_humidity_report(month_folder, output_path=args.output, acceptance_rate=args.rate)
-        print(f"[OK] Report generato con successo per {args.month}:")
+        print(f"[OK] Report generato con successo per {month_arg}:")
         print(f"     File: {res['output_path']}")
         print(f"     Giorni con dati: {res['operational_days']}/{res['num_days']}")
         print(f"     Media Umidità Relativa: {res['avg_rel_humidity']:.2f}%")
