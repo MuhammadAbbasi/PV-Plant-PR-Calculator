@@ -6,8 +6,45 @@ GET SRL
 STORICO VERSIONI / CHANGELOG
 Aggiungere una voce in cima ad ogni modifica: data (AAAA-MM-GG) e cosa cambia.
 
-ULTIMO AGGIORNAMENTO / LAST UPDATE: 2026-09-02 16:10
+ULTIMO AGGIORNAMENTO / LAST UPDATE: 2026-09-25
 ===============================================================================
+
+v15.2 - 2026-09-25 (Bugfix critico: colonne del file Madre)
+  * CORRETTO: la colonna "TX3 - Energy Loss" del file Madre riportava i valori
+    di PR Compensato, non le perdite. Stessa causa per "TX1/TX2 - Energy Loss"
+    (PR SCADA / PR VCOM), per External Availability e per le medie di riga
+    riassuntiva e delle colonne per inverter.
+    Causa: sync_mother_file individuava le colonne per POSIZIONE fissa, ma
+    lo faceva DOPO aver gia' inserito colonne. Su un file che possedeva gia'
+    tutte le colonne, l'inserimento di "Meter Reading" spostava "PR SCADA"
+    in colonna 8: i controlli successivi (colonne 8, 9, 10) la leggevano al
+    posto di "PR VCOM" / "PR Compensated" / "External Availability", le
+    consideravano mancanti e ne inserivano dei DUPLICATI vuoti. Le tre colonne
+    in piu' spostavano a destra il blocco delle perdite, mentre le formule
+    della riga riassuntiva e di External Availability continuavano a scrivere
+    sulle colonne 11/12/13 cablate nel codice.
+  * Le colonne del Madre sono ora risolte SEMPRE PER NOME (riga 4) tramite
+    'mother_col_key' / 'scan_mother_columns' / 'ensure_mother_columns'.
+    Viene inserito solo cio' che manca davvero, nella posizione canonica:
+      Dati | Irradiance TX1, TX3, Conditional MAX | Energy (day) |
+      PR Total, PR SCADA, PR VCOM, PR Compensated | External Availability |
+      TX1/TX2/TX3 - Energy Loss | PR per inverter (36 colonne)
+  * Rimosso il test fragile '"energy" in nome and "loss" not in nome': le
+    colonne TX*-Energy Loss sono ora riconosciute PRIMA di quella generica.
+  * "PR Total" e "PR VCOM" non condividono piu' lo stesso ramo di
+    riconoscimento (erano mappate entrambe su $BA$5*100 per collisione).
+  * La riga riassuntiva usa ora la funzione corretta per ogni colonna
+    (SUM per irraggiamento/energia/perdite, AVERAGE per i PR, MAX per un
+    eventuale "Meter Reading", SUMIF/COUNTIF per External Availability):
+    prima applicava MAX all'energia e SUM al PR Total.
+  * Nuovo controllo 'check_mother_layout': un Madre con colonne duplicate
+    (generato dalla versione precedente) viene RIFIUTATO con un messaggio che
+    invita a rigenerarlo; un ordine non canonico produce solo un avviso, le
+    formule restando corrette perche' risolte per nome.
+  * "Meter Reading [MWh]" e' riconosciuto e alimentato se il file lo possiede
+    gia', ma non viene mai inserito: lo spostamento di tutte le colonne
+    romperebbe i collegamenti dei file esistenti.
+  * Verifica automatica: 'test_mother_columns.py'.
 
 v15.1 - 2026-09-02 (Bugfix COM & Chiusura Forzata Excel)
   * Risolto errore PyInstaller 'No module named win32timezone' durante
@@ -84,6 +121,7 @@ v11.0 - 2026-06-18
 """
 
 import os
+import re
 import glob
 import sys
 import threading
@@ -194,6 +232,158 @@ def quit_excel_app():
         except Exception:
             pass
         _excel_app = None
+
+# --- Madre (mother file) column layout -------------------------------------
+# The Madre sheet is addressed BY HEADER NAME, never by column number. The
+# previous code tested fixed positions (8, 9, 10) *after* earlier Columns().Insert()
+# calls had already shifted the sheet: on a file that already had every column,
+# inserting "Meter Reading" pushed PR SCADA into column 8, so the PR VCOM /
+# PR Compensated / External Availability checks all reported "missing" and
+# inserted duplicates. Three extra columns shifted the Energy Loss block right,
+# and the hardcoded summary / availability formulas then wrote PR values into
+# the TX3 - Energy Loss column.
+
+MOTHER_HEADERS = {
+    "irr_tx1":   "Irradiance TX1",
+    "irr_tx3":   "Irradiance TX3",
+    "irr_max":   "Irradiance Conditional MAX\n[KWh/m2]",
+    "meter":     "Meter Reading\n[MWh]",
+    "energy":    "Energy (day)",
+    "pr_total":  "PR Total",
+    "pr_scada":  "PR SCADA",
+    "pr_vcom":   "PR VCOM",
+    "pr_comp":   "PR Compensated",
+    "ext_avail": "External Availability\n[%]",
+    "loss_tx1":  "TX1 - Energy Loss\nkW/H",
+    "loss_tx2":  "TX2 - Energy Loss\nkW/H",
+    "loss_tx3":  "TX3 - Energy Loss\nkW/H",
+}
+
+# Canonical left-to-right order after column A ("Dati"), then the 36 PR TX*-INV-*
+# columns. "meter" is deliberately NOT here: it is recognised and fed when a file
+# already has it, but is never inserted -- adding it would shift every existing
+# Madre file (and anything linking into it) one column right.
+MOTHER_CANONICAL = ["irr_tx1", "irr_tx3", "irr_max", "energy", "pr_total", "pr_scada",
+                    "pr_vcom", "pr_comp", "ext_avail", "loss_tx1", "loss_tx2", "loss_tx3"]
+
+# Cell in the daily PR_Calc sheet each Madre column links to.
+MOTHER_DAILY_ADDR = {
+    "irr_tx1": "$D$111", "irr_tx3": "$F$111", "irr_max": "$I$111",
+    "meter": "$L$110", "energy": "$M$111",
+    "pr_total": "$BA$5*100", "pr_scada": "$BH$8", "pr_vcom": "$BA$5*100",
+    "pr_comp": "$BH$11",
+    "loss_tx1": "$AA$111", "loss_tx2": "$AN$111", "loss_tx3": "$BA$111",
+}
+
+_MOTHER_INV_RE = re.compile(r"pr\s*tx([123])\s*-\s*inv\s*-\s*(\d+)")
+
+
+def mother_col_key(header):
+    """Classify a Madre header-row cell into a canonical column key, or None.
+
+    Order matters: the TX*-Energy-Loss tests come BEFORE the generic "energy"
+    test, and "pr vcom" before "pr total", so no negative lookarounds are needed.
+    """
+    v = str(header or "").strip().lower()
+    if not v:
+        return None
+    if "irradiance tx1" in v:
+        return "irr_tx1"
+    if "irradiance tx3" in v:
+        return "irr_tx3"
+    if "irradiance" in v or "irraggiamento" in v:
+        return "irr_max"
+    if "meter reading" in v or "lettura contatore" in v:
+        return "meter"
+    for tx in ("1", "2", "3"):
+        if f"tx{tx} - energy loss" in v or f"tx{tx} - perdita" in v or f"perdita energia tx{tx}" in v:
+            return f"loss_tx{tx}"
+    if "energy" in v or "energia" in v:
+        return "energy"
+    if "pr vcom" in v:
+        return "pr_vcom"
+    if "pr total" in v:
+        return "pr_total"
+    if "pr scada" in v:
+        return "pr_scada"
+    if "pr compensated" in v or "pr compensato" in v:
+        return "pr_comp"
+    if "availability" in v or "disponibilit" in v:
+        return "ext_avail"
+    m = _MOTHER_INV_RE.search(v)
+    if m:
+        return f"pr_inv_{m.group(1)}_{int(m.group(2))}"
+    return None
+
+
+def check_mother_layout(ws, max_col=64):
+    """(duplicate columns, order_is_canonical) for the Madre header row.
+
+    A duplicated logical column is the signature of a file wrecked by the old
+    positional inserts (a blank second "PR VCOM" / "PR Compensated" / "External
+    Availability"). Such a file cannot be repaired by name lookup -- half the data
+    sits under the wrong header -- so the sync refuses it and asks for a rebuild.
+    """
+    seen, dupes, order = {}, [], []
+    for c in range(1, max_col + 1):
+        key = mother_col_key(ws.Cells(4, c).Value)
+        if not key:
+            continue
+        if key in seen:
+            dupes.append((key, seen[key], c))
+        else:
+            seen[key] = c
+            if key in MOTHER_CANONICAL:
+                order.append(key)
+    return dupes, order == [k for k in MOTHER_CANONICAL if k in seen]
+
+
+def scan_mother_columns(ws, max_col=64):
+    """{column key: 1-based column index} read from the Madre header row (row 4)."""
+    cols = {}
+    for c in range(1, max_col + 1):
+        key = mother_col_key(ws.Cells(4, c).Value)
+        if key and key not in cols:
+            cols[key] = c
+    return cols
+
+
+def ensure_mother_columns(ws, max_col=64):
+    """Insert any canonical Madre column that is genuinely absent, then return the
+    {key: column} map. Idempotent: a file that already has a column keeps it where
+    it is, whatever position that happens to be."""
+    cols = scan_mother_columns(ws, max_col)
+    prev = 1  # column A = "Dati"
+    for key in MOTHER_CANONICAL:
+        if key in cols:
+            prev = cols[key]
+            continue
+        at = prev + 1
+        print(f"DEBUG: colonna Madre '{MOTHER_HEADERS[key]}' assente -> inserimento in posizione {at}.")
+        ws.Columns(at).Insert()
+        ws.Cells(4, at).Value = MOTHER_HEADERS[key]
+        try:  # match the neighbouring header's look
+            ref = ws.Cells(4, prev)
+            tgt = ws.Cells(4, at)
+            tgt.Interior.Color = ref.Interior.Color
+            tgt.Font.Name = ref.Font.Name
+            tgt.Font.Size = ref.Font.Size
+            tgt.Font.Bold = ref.Font.Bold
+            tgt.Font.Color = ref.Font.Color
+            tgt.HorizontalAlignment = ref.HorizontalAlignment
+            tgt.VerticalAlignment = ref.VerticalAlignment
+            tgt.WrapText = ref.WrapText
+            for b_id in (7, 8, 9, 10, 11, 12):
+                tgt.Borders(b_id).LineStyle = ref.Borders(b_id).LineStyle
+                tgt.Borders(b_id).Weight = ref.Borders(b_id).Weight
+                tgt.Borders(b_id).Color = ref.Borders(b_id).Color
+        except Exception as fmt_err:
+            print(f"DEBUG Warning: copia stile header non riuscita per '{key}': {fmt_err}")
+        cols = {k: (v + 1 if v >= at else v) for k, v in cols.items()}
+        cols[key] = at
+        prev = at
+    return cols
+
 
 class RedirectText:
     def __init__(self, root, text_widget, original_stream):
@@ -3514,88 +3704,42 @@ class PRCalculatorGUI:
             num_days = calendar.monthrange(year_val, month_val)[1]
             target_summary_row = 5 + num_days
             
-            # Programmatically ensure "Irradiance TX1" and "Irradiance TX3" are present at Columns B and C
-            b4_val = ws_mother.Cells(4, 2).Value
-            if not (b4_val and "Irradiance TX1" in str(b4_val)):
-                print("DEBUG: Irradiance TX1 column not found at Column B. Programmatically inserting Irradiance TX1 and Irradiance TX3 columns...")
-                ws_mother.Columns(2).Insert()
-                ws_mother.Columns(2).Insert()
-                ws_mother.Cells(4, 2).Value = "Irradiance TX1"
-                ws_mother.Cells(4, 3).Value = "Irradiance TX3"
+            # Resolve every Madre column BY NAME, inserting only what is genuinely
+            # missing. `mcols` is the single source of truth for the rest of this method.
+            dupes, order_ok = check_mother_layout(ws_mother)
+            if dupes:
+                names = ", ".join(f"'{MOTHER_HEADERS[k]}' (colonne {a} e {b})".replace(chr(10), " ")
+                                  for k, a, b in dupes)
+                raise RuntimeError(
+                    f"Il file Madre '{os.path.basename(mother_path)}' contiene colonne duplicate: {names}.\n"
+                    f"E' il sintomo di un file generato dalla versione precedente del sync.\n"
+                    f"Eliminare (o archiviare) il file Madre e rilanciare il calcolo: "
+                    f"verra' rigenerato dal template con l'ordine corretto.")
+            mcols = ensure_mother_columns(ws_mother)
+            missing = [k for k in MOTHER_CANONICAL if k not in mcols]
+            if missing:
+                raise RuntimeError(f"Colonne Madre non risolte dopo l'inserimento: {missing}")
+            if not order_ok:
+                print("DEBUG Warning: le colonne del file Madre non seguono l'ordine canonico "
+                      f"({', '.join(MOTHER_HEADERS[k].replace(chr(10), ' ') for k in MOTHER_CANONICAL)}). "
+                      "Le formule restano corrette (risolte per nome); rigenerare il file per riordinarle.")
+            CL = openpyxl.utils.get_column_letter
+            last_day_row = 4 + num_days
 
-            # Ensure number format for Irradiance columns is set to 4 decimal places (not date format inherited from Column A)
-            ws_mother.Range(f"B5:D{5+num_days-1}").NumberFormatLocal = "0,0000"
+            # Irradiance columns are numeric, not dates inherited from column A.
+            for key in ("irr_tx1", "irr_tx3", "irr_max"):
+                cl = CL(mcols[key])
+                ws_mother.Range(f"{cl}5:{cl}{last_day_row}").NumberFormatLocal = "0,0000"
+            if "meter" in mcols:
+                cl = CL(mcols["meter"])
+                ws_mother.Range(f"{cl}5:{cl}{last_day_row}").NumberFormatLocal = "0,000"
 
-            # Ensure B4, C4, I4, J4 header cells have the exact same style and borders as D4
-            ref_cell = ws_mother.Cells(4, 4)
-            for rng_str in ["B4:C4", "I4:J4"]:
-                target_hdr = ws_mother.Range(rng_str)
-                try:
-                    target_hdr.Interior.Color = ref_cell.Interior.Color
-                    target_hdr.Font.Name = ref_cell.Font.Name
-                    target_hdr.Font.Size = ref_cell.Font.Size
-                    target_hdr.Font.Bold = ref_cell.Font.Bold
-                    target_hdr.Font.Color = ref_cell.Font.Color
-                    target_hdr.HorizontalAlignment = ref_cell.HorizontalAlignment
-                    target_hdr.VerticalAlignment = ref_cell.VerticalAlignment
-                    target_hdr.WrapText = ref_cell.WrapText
-                    
-                    # Copy borders
-                    for b_id in [7, 8, 9, 10, 11, 12]:
-                        try:
-                            target_hdr.Borders(b_id).LineStyle = ref_cell.Borders(b_id).LineStyle
-                            target_hdr.Borders(b_id).Weight = ref_cell.Borders(b_id).Weight
-                            target_hdr.Borders(b_id).Color = ref_cell.Borders(b_id).Color
-                        except Exception:
-                            pass
-                except Exception as fmt_err:
-                    print(f"DEBUG Warning: non-fatal header style copy error for {rng_str}: {fmt_err}")
-
-            # Remove solid green background fill from day rows for Irradiance TX1 and TX3 (make transparent)
+            # Remove the template's solid green fill from the per-TX irradiance day rows.
             try:
-                ws_mother.Range(f"B5:C{5+num_days-1}").Interior.ColorIndex = -4142 # xlNone = -4142
+                ws_mother.Range(f"{CL(mcols['irr_tx1'])}5:{CL(mcols['irr_tx3'])}{last_day_row}").Interior.ColorIndex = -4142
             except Exception as fill_err:
                 print(f"DEBUG Warning: non-fatal fill reset error: {fill_err}")
 
-            # Programmatically ensure "Meter Reading" column is present before "Energy (day)"
-            meter_reading_col = None
-            energy_col_idx = None
-            for c_idx in range(2, 20):
-                v_str = str(ws_mother.Cells(4, c_idx).Value or "").strip().lower()
-                if "meter reading" in v_str or "lettura contatore" in v_str:
-                    meter_reading_col = c_idx
-                elif "energy" in v_str and "loss" not in v_str and "perdita" not in v_str:
-                    if not energy_col_idx:
-                        energy_col_idx = c_idx
-                        
-            if not meter_reading_col and energy_col_idx:
-                print(f"DEBUG: Inserimento colonna 'Meter Reading' prima di Energy (day) alla colonna {energy_col_idx}...")
-                ws_mother.Columns(energy_col_idx).Insert()
-                ws_mother.Cells(4, energy_col_idx).Value = "Meter Reading\n[MWh]"
-                try:
-                    ws_mother.Range(f"{openpyxl.utils.get_column_letter(energy_col_idx)}5:{openpyxl.utils.get_column_letter(energy_col_idx)}{5+num_days-1}").NumberFormatLocal = "0,000"
-                except Exception:
-                    pass
-
-            # Programmatically ensure "PR VCOM", "PR Compensated", and "External Availability [%]" columns are present at Columns H, I, and J
-            h4_val = ws_mother.Cells(4, 8).Value
-            if not (h4_val and "VCOM" in str(h4_val)):
-                print("DEBUG: PR VCOM column not found at Column H. Programmatically inserting...")
-                ws_mother.Columns(8).Insert()
-                ws_mother.Cells(4, 8).Value = "PR VCOM"
-                
-            i4_val = ws_mother.Cells(4, 9).Value
-            if not (i4_val and ("compensated" in str(i4_val).lower() or "compensato" in str(i4_val).lower())):
-                print("DEBUG: PR Compensated column not found at Column I. Programmatically inserting...")
-                ws_mother.Columns(9).Insert()
-                ws_mother.Cells(4, 9).Value = "PR Compensated"
-                
-            j4_val = ws_mother.Cells(4, 10).Value
-            if not (j4_val and ("availability" in str(j4_val).lower() or "disponibilità" in str(j4_val).lower())):
-                print("DEBUG: External Availability column not found at Column J. Programmatically inserting...")
-                ws_mother.Columns(10).Insert()
-                ws_mother.Cells(4, 10).Value = "External Availability\n[%]"
-                
             # Dynamically format and adjust summary row in existing Mother file if needed!
             current_summary_row = None
             for r in range(30, 42):
@@ -3624,35 +3768,49 @@ class PRCalculatorGUI:
                     del_end = current_summary_row - 1
                     ws_mother.Rows(f"{del_start}:{del_end}").Delete()
                     
-            ws_mother.Cells(target_summary_row, 2).Formula = f"=SUM(B5:B{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 3).Formula = f"=SUM(C5:C{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 4).Formula = f"=SUM(D5:D{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 5).Formula = f"=MAX(E5:E{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 6).Formula = f"=SUM(F5:F{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 7).Formula = f"=AVERAGE(G5:G{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 8).Formula = f"=AVERAGE(H5:H{target_summary_row-1})"
-            # PR Compensated monthly average — matches v10 (plain AVERAGE of day rows;
-            # AVERAGE ignores blank/unprocessed days but includes any 0-value days).
-            ws_mother.Cells(target_summary_row, 9).Formula = f"=AVERAGE(I5:I{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 10).Formula = f"=SUMIF(J5:J{target_summary_row-1},\"<>0\")/COUNTIF(J5:J{target_summary_row-1},\"<>0\")"
-            ws_mother.Cells(target_summary_row, 11).Formula = f"=SUM(K5:K{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 12).Formula = f"=SUM(L5:L{target_summary_row-1})"
-            ws_mother.Cells(target_summary_row, 13).Formula = f"=SUM(M5:M{target_summary_row-1})"
-            
-            # Inverter PR columns averages (columns 14 to 49)
-            for inv_col in range(14, 50):
-                col_let = openpyxl.utils.get_column_letter(inv_col)
-                ws_mother.Cells(target_summary_row, inv_col).Formula = f"=AVERAGE({col_let}5:{col_let}{target_summary_row-1})" 
-            
+            sr, lr = target_summary_row, target_summary_row - 1
+
+            def _summary(key, fn):
+                col = mcols.get(key)
+                if not col:
+                    return
+                cl = CL(col)
+                ws_mother.Cells(sr, col).Formula = f"={fn}({cl}5:{cl}{lr})"
+
+            for key in ("irr_tx1", "irr_tx3", "irr_max", "energy",
+                        "loss_tx1", "loss_tx2", "loss_tx3"):
+                _summary(key, "SUM")
+            # A meter reading is cumulative: the month figure is the last/highest reading.
+            _summary("meter", "MAX")
+            # PR columns average over the month. Plain AVERAGE matches v10: it skips
+            # blank/unprocessed days but still counts any day that computed to 0.
+            for key in ("pr_total", "pr_scada", "pr_vcom", "pr_comp"):
+                _summary(key, "AVERAGE")
+            # External availability averages only the days that actually ran.
+            ea = CL(mcols["ext_avail"])
+            ws_mother.Cells(sr, mcols["ext_avail"]).Formula = (
+                f'=SUMIF({ea}5:{ea}{lr},"<>0")/COUNTIF({ea}5:{ea}{lr},"<>0")')
+            for key, col in mcols.items():
+                if key.startswith("pr_inv_"):
+                    cl = CL(col)
+                    ws_mother.Cells(sr, col).Formula = f"=AVERAGE({cl}5:{cl}{lr})"
+
             # Format summary row cells as numbers (prevent date formatting)
-            ws_mother.Range(f"B{target_summary_row}:D{target_summary_row}").NumberFormatLocal = "0,0000"
-            ws_mother.Cells(target_summary_row, 5).NumberFormatLocal = "0,00"
-            ws_mother.Range(f"K{target_summary_row}:M{target_summary_row}").NumberFormatLocal = "0,00"
-            
-            # Write/update formulas for External Availability in day rows (5 to 4 + num_days) after summary row has been adjusted
+            for key in ("irr_tx1", "irr_tx3", "irr_max"):
+                ws_mother.Cells(sr, mcols[key]).NumberFormatLocal = "0,0000"
+            if "meter" in mcols:
+                ws_mother.Cells(sr, mcols["meter"]).NumberFormatLocal = "0,00"
+            for key in ("loss_tx1", "loss_tx2", "loss_tx3"):
+                ws_mother.Cells(sr, mcols[key]).NumberFormatLocal = "0,00"
+
+            # External Availability per day = produced / (produced + the three TX losses).
+            # Written after the summary row has been adjusted.
+            e_cl, k_cl, l_cl, m_cl = (CL(mcols[key]) for key in ("energy", "loss_tx1", "loss_tx2", "loss_tx3"))
+            av_col = mcols["ext_avail"]
             for r in range(5, 5 + num_days):
-                ws_mother.Cells(r, 10).Formula = f"=IF(F{r}=\"\",0,(F{r}/(F{r}+K{r}+L{r}+M{r}))*100)"
-            
+                ws_mother.Cells(r, av_col).Formula = (
+                    f'=IF({e_cl}{r}="",0,({e_cl}{r}/({e_cl}{r}+{k_cl}{r}+{l_cl}{r}+{m_cl}{r}))*100)')
+
             # Change links natively via Excel to avoid openpyxl corruption if initialized new
             if initialized_new:
                 links = wb_mother.LinkSources(1) # xlExcelLinks
@@ -3671,57 +3829,20 @@ class PRCalculatorGUI:
                 day_num = r - 4
                 ws_mother.Cells(r, 1).Value = f"{year_val}-{month_val:02d}-{day_num:02d}"
                 
-            # Dynamically map mother sheet columns based on header names (Row 4)
+            # Each Madre column links to one cell of the daily PR_Calc sheet.
+            # Re-read the header row: row inserts above may have moved nothing, but a
+            # fresh scan keeps this honest if anything did shift.
+            mcols = scan_mother_columns(ws_mother)
             header_mapping = {}
-            for col in range(2, 65):
-                val = ws_mother.Cells(4, col).Value
-                if not val:
-                    continue
-                val_str = str(val).strip().lower()
-                if "irradiance tx1" in val_str:
-                    header_mapping[col] = "$D$111"
-                elif "irradiance tx3" in val_str:
-                    header_mapping[col] = "$F$111"
-                elif "irradiance" in val_str or "irraggiamento" in val_str:
-                    header_mapping[col] = "$I$111"
-                elif "meter reading" in val_str or "lettura contatore" in val_str:
-                    header_mapping[col] = "$L$110"
-                elif "energy" in val_str and "loss" not in val_str and "perdita" not in val_str:
-                    header_mapping[col] = "$M$111"
-                elif "pr total" in val_str or "pr vcom" in val_str:
-                    header_mapping[col] = "$BA$5*100"
-                elif "pr scada" in val_str:
-                    header_mapping[col] = "$BH$8"
-                elif "pr compensated" in val_str or "pr compensato" in val_str:
-                    header_mapping[col] = "$BH$11"
-                elif "tx1 - energy loss" in val_str or "tx1 - perdita" in val_str or "perdita energia tx1" in val_str:
-                    header_mapping[col] = "$AA$111"
-                elif "tx2 - energy loss" in val_str or "tx2 - perdita" in val_str or "perdita energia tx2" in val_str:
-                    header_mapping[col] = "$AN$111"
-                elif "tx3 - energy loss" in val_str or "tx3 - perdita" in val_str or "perdita energia tx3" in val_str:
-                    header_mapping[col] = "$BA$111"
-                elif "pr tx1-inv-" in val_str:
-                    try:
-                        inv_num = int(val_str.split("inv-")[-1])
-                        daily_col = 14 + inv_num
-                        header_mapping[col] = openpyxl.utils.get_column_letter(daily_col) + "$111"
-                    except Exception:
-                        pass
-                elif "pr tx2-inv-" in val_str:
-                    try:
-                        inv_num = int(val_str.split("inv-")[-1])
-                        daily_col = 27 + inv_num
-                        header_mapping[col] = openpyxl.utils.get_column_letter(daily_col) + "$111"
-                    except Exception:
-                        pass
-                elif "pr tx3-inv-" in val_str:
-                    try:
-                        inv_num = int(val_str.split("inv-")[-1])
-                        daily_col = 40 + inv_num
-                        header_mapping[col] = openpyxl.utils.get_column_letter(daily_col) + "$111"
-                    except Exception:
-                        pass
-                
+            for key, col in mcols.items():
+                if key in MOTHER_DAILY_ADDR:
+                    header_mapping[col] = MOTHER_DAILY_ADDR[key]
+                elif key.startswith("pr_inv_"):
+                    _, _, tx, inv = key.split("_")
+                    # Daily PR_Calc inverter PR blocks: TX1 O-Z, TX2 AB-AM, TX3 AO-AZ.
+                    base = {"1": 14, "2": 27, "3": 40}[tx]
+                    header_mapping[col] = openpyxl.utils.get_column_letter(base + int(inv)) + "$111"
+
             # --- Optional external vendor PR sources ---------------------------------
             # If the month folder (the '/YYYY MM' folder that contains 'PR CALCOLO FILE')
             # holds the SCADA KPI export and/or the VCOM export, their per-day PR values
@@ -3729,13 +3850,8 @@ class PRCalculatorGUI:
             month_folder = os.path.dirname(os.path.abspath(calcolo_folder))
             scada_pr = self._read_scada_daily_pr(month_folder, year_val, month_val)
             vcom_pr = self._read_vcom_daily_pr(month_folder)
-            scada_col = vcom_col = None
-            for col in range(2, 65):
-                hv = str(ws_mother.Cells(4, col).Value or "").strip().lower()
-                if "pr scada" in hv:
-                    scada_col = col
-                elif "pr vcom" in hv:
-                    vcom_col = col
+            scada_col = mcols.get("pr_scada")
+            vcom_col = mcols.get("pr_vcom")
             # When a vendor file is present, manage that column as direct values: drop its
             # child-link formula so the value we write is not overwritten on the next sync.
             if scada_pr and scada_col:

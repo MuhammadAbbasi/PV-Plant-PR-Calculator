@@ -229,25 +229,60 @@ Must contain at least two worksheets with the following exact names and structur
 ### 2. Monthly "Mother" Workbook (`00 PR_recalculation_*.xlsx`)
 Must contain a **`PR_Calc`** sheet structured as follows:
 *   **Column `A`**: Date sequence for the entire month (Rows 5 to `5 + num_days - 1`).
-*   **Columns `B` to `M` (Day Rows)**: Auto-linked formulas referencing the corresponding child workbook:
+*   **Columns `B` to `M` (Day Rows)**: Auto-linked formulas referencing the corresponding child workbook.
+    Columns are resolved **by header name in row 4**, never by position, and any missing one is inserted
+    at its canonical place. Canonical order: `Dati` | Irradiance | Energy | PR | External Availability |
+    TX Energy Loss | per-inverter PR.
     *   Column `B` (Irradiance TX1): `='[ChildPath]PR_Calc'!$D$111`
     *   Column `C` (Irradiance TX3): `='[ChildPath]PR_Calc'!$F$111`
-    *   Column `D` (Irradiance [kWh/m2]): `='[ChildPath]PR_Calc'!$I$111`
-    *   Column `E` (Energy [kWh]): `='[ChildPath]PR_Calc'!$M$111`
-    *   Column `F` (PR Target [%]): `='[ChildPath]PR_Calc'!$BH$5`
-    *   Column `G` (PR Total [%]): `='[ChildPath]PR_Calc'!$BH$6` (or `='[ChildPath]PR_Calc'!$BA$5*100`)
-    *   Column `H` (PR VCOM [%]): `='[ChildPath]PR_Calc'!$BH$8`
+    *   Column `D` (Irradiance Conditional MAX [kWh/m2]): `='[ChildPath]PR_Calc'!$I$111`
+    *   Column `E` (Energy (day) [kWh]): `='[ChildPath]PR_Calc'!$M$111`
+    *   Column `F` (PR Total [%]): `='[ChildPath]PR_Calc'!$BA$5*100`
+    *   Column `G` (PR SCADA [%]): `='[ChildPath]PR_Calc'!$BH$8` (replaced by `KPI_Report_Daily.xls*` values when present)
+    *   Column `H` (PR VCOM [%]): `='[ChildPath]PR_Calc'!$BA$5*100` (replaced by `Performance_ratio_vcom.csv` values when present)
     *   Column `I` (PR Compensated [%]): **`='[ChildPath]PR_Calc'!$BH$11`**
     *   Column `J` (External Availability [%]): `=IF(E{r}="",0,(E{r}/(E{r}+K{r}+L{r}+M{r}))*100)`
     *   Column `K` (TX1 Energy Loss): `='[ChildPath]PR_Calc'!$AA$111`
     *   Column `L` (TX2 Energy Loss): `='[ChildPath]PR_Calc'!$AN$111`
     *   Column `M` (TX3 Energy Loss): `='[ChildPath]PR_Calc'!$BA$111`
+    *   An optional `Meter Reading [MWh]` column (`='[ChildPath]PR_Calc'!$L$110`) is recognised and fed
+        when a file already has it, but is never inserted: adding it would shift every existing Madre file.
 *   **Inverter Columns (Columns N to AW)**: Linked to corresponding child row 111 per-inverter calculated PR.
 *   **Summary Row**: Dynamically positioned at Row `5 + num_days` containing appropriate sums and averages.
 
 ---
 
 ## Changelog
+
+### v15.2 (2026-09-25) — Mother file column resolution
+
+- **Bug fix — Energy Loss columns carried PR values**: The Mother file's `TX3 - Energy Loss` column
+  reported **PR Compensated** figures; `TX1`/`TX2 - Energy Loss` reported **PR SCADA** / **PR VCOM**.
+  External Availability, the summary row and the per-inverter averages were shifted by the same fault.
+  *Cause*: `sync_mother_file` located columns by **fixed position**, and did so *after* it had already
+  inserted columns. On a file that already had every column, inserting `Meter Reading` pushed
+  `PR SCADA` into column 8 — so the checks for `PR VCOM` (col 8), `PR Compensated` (col 9) and
+  `External Availability` (col 10) each read `PR SCADA`, declared their column missing, and inserted a
+  blank **duplicate**. Three surplus columns pushed the Energy Loss block right, while the summary and
+  availability formulas kept writing to hardcoded columns 11/12/13.
+- **Change — Columns are resolved by header name, never by position**: `mother_col_key` /
+  `scan_mother_columns` / `ensure_mother_columns` insert only what is genuinely absent, at its
+  canonical place. Canonical order:
+  `Dati` | `Irradiance TX1`, `Irradiance TX3`, `Irradiance Conditional MAX` | `Energy (day)` |
+  `PR Total`, `PR SCADA`, `PR VCOM`, `PR Compensated` | `External Availability` |
+  `TX1/TX2/TX3 - Energy Loss` | 36 per-inverter PR columns.
+- **Bug fix — Header classification**: the brittle `"energy" in name and "loss" not in name` test is
+  gone; the `TX*-Energy Loss` tests now run *before* the generic energy test. `PR Total` and `PR VCOM`
+  no longer share one branch (both had mapped to `$BA$5*100`).
+- **Bug fix — Summary row used the wrong function per column**: it applied `MAX` to `Energy (day)` and
+  `SUM` to `PR Total`. Now `SUM` for irradiance/energy/losses, `AVERAGE` for the PR columns,
+  `MAX` for an optional `Meter Reading`, `SUMIF`/`COUNTIF` for External Availability.
+- **New — Layout validation (`check_mother_layout`)**: a Mother file carrying duplicate columns (the
+  signature of a file produced by the previous version) is **rejected** with instructions to regenerate
+  it; a merely non-canonical order raises a warning only, since formulas resolve by name.
+- **Note — `Meter Reading [MWh]`** is recognised and fed when a file already has it, but is never
+  inserted: adding it would shift every existing Mother file and break its links.
+- **Verification**: `test_mother_columns.py`.
 
 ### Data Completeness Checker 2.0 (2026-08-07)
 - **New Component/Feature — Tracker verification**: A single run now audits both archives for the selected month or day. For the tracker, a day must hold 24 hourly files whose contents match their name — first row `HH:00`, all 60 minutes present, mid-file sample inside the hour, last row `HH+1:00` — plus checks for duplicate hours (`.csv` + `.TXT`), wrong dates in filenames, truncated exports and DST days (an `01_03` file covers hours 01 and 02).
