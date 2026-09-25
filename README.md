@@ -247,12 +247,45 @@ Must contain a **`PR_Calc`** sheet structured as follows:
     *   Column `M` (TX3 Energy Loss): `='[ChildPath]PR_Calc'!$BA$111`
     *   An optional `Meter Reading [MWh]` column (`='[ChildPath]PR_Calc'!$L$110`) is recognised and fed
         when a file already has it, but is never inserted: adding it would shift every existing Madre file.
-*   **Inverter Columns (Columns N to AW)**: Linked to corresponding child row 111 per-inverter calculated PR.
+*   **Inverter Columns (Columns N to AW)**: `PR TXn-INV-i (raw)` — linked to the child row 111
+    per-inverter PR, which is energy / (DC x POA) **without** loss compensation. The GUI inverter
+    table reports the compensated figure for the same inverter under `PR Compensato (%)`.
 *   **Summary Row**: Dynamically positioned at Row `5 + num_days` containing appropriate sums and averages.
 
 ---
 
 ## Changelog
+
+### v15.3 (2026-09-25) — Loss reference, provisional PR columns, per-inverter naming
+
+- **Change — Losses now reference the same POA as PR**: the energy-loss model used the plain
+  two-sensor average; it now uses the **selected** POA (column `I` x 4000), the same reference the
+  PR uses. On any interval where the pyranometers diverged beyond `$BA$6`, a loss in kWh and the PR
+  it feeds were previously referenced to different irradiances. Measured on real days with the
+  `condmax` method, the reference changes on 2-5 intervals out of 96 (+0,16 % / +0,24 % on the daily
+  total). With the `average` method the result is unchanged, because the selected POA *is* the mean.
+- **Change — No loss is booked below the irradiance threshold**: the selected POA is already zeroed
+  below `$BA$7`, so the loss gate is simply `h > 0` and the threshold now lives in one place instead
+  of being repeated in five conditions.
+  **Check your threshold**: `PR_recalculation_02_ago.xlsx` was generated with `$BA$7 = 0`, so no
+  minimum irradiance was applied for that day at all. The saved setting is 50.
+- **Change — Daily column `H` is live again**: it was a separately-computed, threshold-gated average
+  that fed nothing and disagreed with column `I` whenever the sensors diverged. It is now `=I*4000`
+  — the selected POA in W/m2 — and is the explicit reference of the loss model. Header:
+  `Selected POA >= $BA$7 [W/m2] - loss reference`.
+- **Change — Per-inverter Madre columns renamed to `PR TXn-INV-i (raw)`**: they link to daily row
+  111, which is energy / (DC x POA) with **no** loss compensation, while the GUI inverter table
+  reports the same inverter as *PR Compensato*, **including** losses. Real case: TX1-INV-1 on
+  2 Aug 2026 was down all day — 0 kWh generated, 2 684,71 kWh of loss — and read **0,00 %** in the
+  Madre against **82,47 %** in the GUI. Headers are rewritten **in place**; an unrecognised rename
+  would read as a missing column and shift the sheet. Daily `A111` now reads
+  `PR per inverter (raw, senza perdite)`.
+- **New — Provisional marking for PR SCADA / PR VCOM**: until the vendor report lands (first day of
+  the following month) these cells simply repeat PR Total. They are now filled light yellow with a
+  note explaining that they are placeholders and how to update them. The marking clears itself as
+  soon as a real value is written by `Sync SCADA PR` / `Sync VCOM PR` or by the month-folder pickup.
+- **Verification**: `test_mother_columns.py` covers the rename (in place, idempotent, still
+  classified). The loss-reference change is exercised by a real recalculation, not by the unit test.
 
 ### v15.2 (2026-09-25) — Mother file column resolution
 

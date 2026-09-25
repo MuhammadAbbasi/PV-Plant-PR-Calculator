@@ -6,8 +6,40 @@ GET SRL
 STORICO VERSIONI / CHANGELOG
 Aggiungere una voce in cima ad ogni modifica: data (AAAA-MM-GG) e cosa cambia.
 
-ULTIMO AGGIORNAMENTO / LAST UPDATE: 2026-09-25
+ULTIMO AGGIORNAMENTO / LAST UPDATE: 2026-09-25 (v15.3)
 ===============================================================================
+
+v15.3 - 2026-09-25 (Riferimento POA delle perdite, colonne provvisorie, rinomina)
+  * PERDITE ENERGETICHE: il modello usa ora lo STESSO POA selezionato del PR
+    (Colonna I x 4000) invece della media semplice dei due piranometri. Prima,
+    su ogni intervallo in cui i sensori divergevano oltre $BA$6, una perdita in
+    kWh e il PR che essa alimenta erano riferiti a due irraggiamenti diversi.
+    Impatto misurato su dati reali con metodo "condmax": il riferimento cambia
+    su 2-5 intervalli su 96 (+0,16% / +0,24% sul totale). Con metodo "average"
+    il risultato e' invariato, perche' il POA selezionato E' la media.
+  * SOGLIA IRRAGGIAMENTO: nessuna perdita viene piu' contabilizzata sotto
+    $BA$7. Il POA selezionato e' gia' azzerato sotto soglia, quindi il test
+    diventa "h > 0" e il cancello vive in un solo punto invece che in cinque.
+    ATTENZIONE: verificare che la soglia sia 50 e non 0. Il file
+    'PR_recalculation_02_ago.xlsx' e' stato generato con $BA$7 = 0, quindi per
+    quel giorno la soglia non e' stata applicata affatto.
+  * COLONNA H del file giornaliero: era una media soglia-filtrata che non
+    alimentava piu' nulla. Ora e' "=I*4000", cioe' il POA selezionato in W/m2,
+    ed e' il riferimento esplicito del modello perdite. Intestazione aggiornata
+    a "Selected POA >= $BA$7 [W/m2] - loss reference".
+  * COLONNE PER INVERTER del file Madre rinominate in "PR TXn-INV-i (raw)":
+    puntano alla riga 111 del giornaliero, che e' energia/(DC x POA) SENZA
+    compensazione perdite, mentre la tabella della GUI riporta lo stesso
+    inverter come "PR Compensato" INCLUDENDO le perdite. Esempio reale:
+    TX1-INV-1 il 02/08/2026 (fermo tutto il giorno) -> Madre 0,00% e GUI
+    82,47%. La rinomina avviene IN LOCO, mai per reinserimento.
+    Anche l'etichetta A111 del giornaliero diventa "PR per inverter (raw,
+    senza perdite)".
+  * PR SCADA / PR VCOM: finche' il report del fornitore non arriva (primo
+    giorno del mese successivo) queste celle ripetono il PR Total. Ora sono
+    evidenziate in giallo chiaro con una nota che ne spiega la provvisorieta'
+    e come aggiornarle. L'evidenziazione viene rimossa automaticamente quando
+    il valore reale viene scritto.
 
 v15.2 - 2026-09-25 (Bugfix critico: colonne del file Madre)
   * CORRETTO: la colonna "TX3 - Energy Loss" del file Madre riportava i valori
@@ -278,6 +310,45 @@ MOTHER_DAILY_ADDR = {
 _MOTHER_INV_RE = re.compile(r"pr\s*tx([123])\s*-\s*inv\s*-\s*(\d+)")
 
 
+def mother_inv_header(tx, inv):
+    """Canonical Madre header for one per-inverter PR column.
+
+    "(raw)" is load-bearing: this column links to row 111 of the daily sheet, which
+    is energy / (DC x POA) with NO loss compensation. The GUI's inverter table
+    reports (energy + losses) / (DC x POA) under the heading "PR Compensato", so
+    without the qualifier the same inverter shows two different PRs under two
+    headings that both just read "PR".
+    """
+    return f"PR TX{tx}-INV-{inv} (raw)"
+
+
+# Day cells of PR SCADA / PR VCOM are seeded with the PR Total value until the
+# vendor report arrives (first day of the following month). Light yellow + a note
+# marks them as provisional so nobody reads a placeholder as a measurement.
+MOTHER_PLACEHOLDER_FILL = 12909055  # RGB(255,249,196) packed BGR for Excel
+MOTHER_PLACEHOLDER_NOTE = (
+    "Valore provvisorio: copia del PR Total, non ancora il dato {src}." + chr(10) +
+    "Il report {src} arriva il primo giorno del mese successivo: aggiornare "
+    "manualmente oppure con il pulsante 'Sync {src} PR'."
+)
+
+
+def mark_pr_placeholder(ws, row, col, src, provisional):
+    """Fill/clear the provisional marker on one PR SCADA or PR VCOM day cell."""
+    try:
+        cell = ws.Cells(row, col)
+        if cell.Comment is not None:
+            cell.Comment.Delete()
+        if provisional:
+            cell.Interior.Color = MOTHER_PLACEHOLDER_FILL
+            cell.AddComment(MOTHER_PLACEHOLDER_NOTE.format(src=src))
+            cell.Comment.Visible = False
+        elif cell.Interior.Color == MOTHER_PLACEHOLDER_FILL:
+            cell.Interior.ColorIndex = -4142  # xlNone
+    except Exception:
+        pass
+
+
 def mother_col_key(header):
     """Classify a Madre header-row cell into a canonical column key, or None.
 
@@ -382,6 +453,17 @@ def ensure_mother_columns(ws, max_col=64):
         cols = {k: (v + 1 if v >= at else v) for k, v in cols.items()}
         cols[key] = at
         prev = at
+
+    # Bring per-inverter headers up to the canonical text in place. Renaming rather
+    # than inserting matters: an unrecognised rename would look like a missing column
+    # on the next sync and shift the whole sheet.
+    for key, col in cols.items():
+        if not key.startswith("pr_inv_"):
+            continue
+        _, _, tx, inv = key.split("_")
+        want = mother_inv_header(tx, inv)
+        if str(ws.Cells(4, col).Value or "").strip() != want:
+            ws.Cells(4, col).Value = want
     return cols
 
 
@@ -2696,12 +2778,7 @@ class PRCalculatorGUI:
             
             poa_avg_kwh = (poa1_kwh + poa3_kwh) / 2.0
             poa_avg_w = (poa1 + poa3) / 2.0
-            # Column H reference irradiance (instantaneous average POA, W/m²). As of the
-            # v10 methodology update, PR is referenced to the Conditional MAX POA
-            # (Column I / poa_cond_max_kwh, see below); `h` now feeds ONLY the energy-loss
-            # estimates and is kept as the plain average to reproduce v10's losses exactly.
-            h = poa_avg_w if poa_avg_w > threshold else 0.0
-            
+
             diff_pct = 0.0
             if poa1_kwh > 0 and poa3_kwh > 0:
                 avg_val = (poa1_kwh + poa3_kwh) / 2.0
@@ -2727,6 +2804,14 @@ class PRCalculatorGUI:
             # Mirrors the Excel Column I threshold gate (selected POA*4000 >= $BA$7).
             if poa_cond_max_kwh * 4000.0 < threshold:
                 poa_cond_max_kwh = 0.0
+
+            # v15.3: the energy-loss model references the SAME selected POA as PR.
+            # It used to reference the plain two-sensor average, so on any interval where
+            # the pyranometers disagreed beyond the tolerance a loss in kWh and the PR it
+            # feeds were referenced to different irradiances. `h` is that selected POA back
+            # in W/m² and is already zero below $BA$7, which is what stops a loss from being
+            # booked in the dark. This is Column H of the daily sheet (= I * 4000).
+            h = poa_cond_max_kwh * 4000.0
 
             reg_row = df_reg[df_reg['Unnamed: 1'].astype(str).str[:8] == t_str]
             limit_ratio = reg_row['limit_ratio'].values[0] if len(reg_row) > 0 else 0.876
@@ -2800,12 +2885,15 @@ class PRCalculatorGUI:
             dc = self.dc_powers[inv_id]
             tx_name = inv_id.split("-")[0]
 
+            # `h` is the selected POA in W/m2, ALREADY zeroed below $BA$7 by the POA
+            # selection, so `h > 0` is the sun-up test: no irradiance above the
+            # threshold, no energy loss. The gate lives in one place, not in five.
             # Same ramp-loss rule for every inverter: booked only on trip-adjacent, sun-up,
             # producing, non-curtailed intervals; equals the POA-expected shortfall.
             # Mutually exclusive with dt_loss (needs inv<1 kW) and curt_loss (needs limit<0.875).
             ramp_loss_s = np.where(
                 adj_outage
-                & (df_result['h'] > threshold).values
+                & (df_result['h'] > 0).values
                 & (df_result[inv_id] >= 1.0).values
                 & (df_result['limit_ratio'] >= 0.875).values,
                 np.maximum(0.0, np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) - df_result[inv_id]) * 0.25,
@@ -2814,7 +2902,7 @@ class PRCalculatorGUI:
 
             if tx_name in ["TX1", "TX3"]:
                 dt_loss_s = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0),
+                    (df_result['h'] > 0) & (df_result[inv_id] < 1.0),
                     np.where(
                         df_result[f"{tx_name}_Average_Power"] > 1.0,
                         df_result[f"{tx_name}_Average_Power"] * 0.25,
@@ -2845,7 +2933,7 @@ class PRCalculatorGUI:
                 # loss = (average_power * 0.25 if downtime and active < 1.0 else 0) + curtailment_loss
                 dt_loss_avg_zero = np.minimum((df_result['h'] / 1000.0) * dc * pvsyst_pr, self.ac_power_all * 0.876) * 0.25
                 dt_loss_avg_pos = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0),
+                    (df_result['h'] > 0) & (df_result[inv_id] < 1.0),
                     df_result[f"{tx_name}_Average_Power"] * 0.25,
                     0.0
                 )
@@ -2861,12 +2949,12 @@ class PRCalculatorGUI:
                     0.0
                 )
                 dt_loss_s = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0) & (df_result[f"{tx_name}_Average_Power"] <= 1.0),
+                    (df_result['h'] > 0) & (df_result[inv_id] < 1.0) & (df_result[f"{tx_name}_Average_Power"] <= 1.0),
                     dt_loss_avg_zero,
                     dt_loss_avg_pos
                 )
                 loss_s = np.where(
-                    (df_result['h'] > threshold) & (df_result[inv_id] < 1.0) & (df_result[f"{tx_name}_Average_Power"] <= 1.0),
+                    (df_result['h'] > 0) & (df_result[inv_id] < 1.0) & (df_result[f"{tx_name}_Average_Power"] <= 1.0),
                     dt_loss_avg_zero,
                     dt_loss_avg_pos + curt_loss_s
                 )
@@ -3077,6 +3165,16 @@ class PRCalculatorGUI:
             ws_calc.Range("I15:I110").Formula = [[f"=IFERROR(IF(({_sel(r)})*4000>=$BA$7,{_sel(r)},0), 0)"] for r in _rows]
             ws_calc.Range("J15:J110").Formula = [[f"=IFERROR(IF(AND(D{r}>0,F{r}>0),ABS(D{r}-F{r})/AVERAGE(D{r},F{r}),0), 0)"] for r in _rows]
             ws_calc.Range("M15:M110").Formula = [[f"=IFERROR((L{r}-K{r})*1000, 0)"] for r in _rows]
+            # Column H is the SAME selected POA as column I, expressed in W/m2, and is the
+            # reference the energy-loss model uses. It used to hold a separately-computed
+            # threshold-gated AVERAGE, which no longer fed anything and disagreed with I
+            # whenever the two pyranometers diverged beyond $BA$6. Deriving it from I keeps
+            # one selection rule in the sheet and makes the ">= $BA$7, else no loss" gate
+            # visible where it is applied.
+            ws_calc.Range("H15:H110").Formula = [[f"=IFERROR(I{r}*4000, 0)"] for r in _rows]
+            ws_calc.Cells(14, 8).Value = "Selected POA >= $BA$7\n[W/m2]\nloss reference"
+            # Row 111 holds energy-only PR per inverter; say so where it is read.
+            ws_calc.Cells(111, 1).Value = "PR per inverter (raw, senza perdite)"
                 
             # Programmatically enforce correct inverter PR formulas in row 111 (without losses)
             import openpyxl.utils
@@ -3936,6 +4034,16 @@ class PRCalculatorGUI:
                                 pass
                     except Exception as clr_ex:
                         pass
+
+                    # Mark PR SCADA / PR VCOM as provisional wherever the vendor report
+                    # has not landed yet: those cells currently just repeat PR Total.
+                    # Applied AFTER the VCOM row fill above, which paints the whole row.
+                    if scada_col:
+                        mark_pr_placeholder(ws_mother, r, scada_col, "SCADA",
+                                            not (scada_pr and day_num in scada_pr))
+                    if vcom_col:
+                        mark_pr_placeholder(ws_mother, r, vcom_col, "VCOM",
+                                            not (vcom_pr and day_num in vcom_pr))
                 else:
                     # Daily file not yet processed — clear any stale data/formulas left
                     # over from a previous month's template so the row stays blank.
@@ -3946,6 +4054,9 @@ class PRCalculatorGUI:
                                 cell.Value = None
                         except Exception:
                             pass
+                    for vcol, vsrc in ((scada_col, "SCADA"), (vcom_col, "VCOM")):
+                        if vcol:
+                            mark_pr_placeholder(ws_mother, r, vcol, vsrc, False)
                         
             try:
                 excel.Calculation = -4105  # xlCalculationAutomatic

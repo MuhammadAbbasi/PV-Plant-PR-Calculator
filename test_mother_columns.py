@@ -8,7 +8,8 @@ summary formulas wrote PR Compensated values into the TX3 - Energy Loss column.
 Run: python test_mother_columns.py
 """
 from PR_Calculator_GUI_v15 import (MOTHER_CANONICAL, MOTHER_DAILY_ADDR, MOTHER_HEADERS,
-                                   check_mother_layout, ensure_mother_columns, mother_col_key)
+                                   check_mother_layout, ensure_mother_columns,
+                                   mother_col_key, mother_inv_header)
 
 
 class FakeSheet:
@@ -41,24 +42,32 @@ class FakeSheet:
         return [x for x in self.h[1:] if x is not None]
 
 
+INVERTERS_OLD = [f"PR TX{t}-INV-{i}" for t in (1, 2, 3) for i in range(1, 13)]
+INVERTERS_NEW = [mother_inv_header(t, i) for t in (1, 2, 3) for i in range(1, 13)]
+
 PRISTINE = ["Dati", "Irradiance Conditional MAX\n[KWh/m2]", "Energy (day)", "PR Total",
             "PR SCADA", "TX1 - Energy Loss\nkW/H", "TX2 - Energy Loss\nkW/H",
-            "TX3 - Energy Loss\nkW/H"] + [f"PR TX{t}-INV-{i}" for t in (1, 2, 3) for i in range(1, 13)]
+            "TX3 - Energy Loss\nkW/H"] + INVERTERS_OLD
 
 PRODUCTION = ["Dati", "Irradiance TX1", "Irradiance TX3", "Irradiance Conditional MAX\n[KWh/m2]",
               "Energy (day)", "PR Total", "PR SCADA", "PR VCOM", "PR Compensated",
               "External Availability\n[%]", "TX1 - Energy Loss\nkW/H", "TX2 - Energy Loss\nkW/H",
-              "TX3 - Energy Loss\nkW/H"] + [f"PR TX{t}-INV-{i}" for t in (1, 2, 3) for i in range(1, 13)]
+              "TX3 - Energy Loss\nkW/H"] + INVERTERS_OLD
+
+CANONICAL_COLS = {k: i for k, i in zip(MOTHER_CANONICAL, range(2, 14))}
+CANONICAL_COLS.update({f"pr_inv_{t}_{i}": 13 + (t - 1) * 12 + i
+                       for t in (1, 2, 3) for i in range(1, 13)})
 
 
-def check(name, headers, expect_stable):
+def check(name, headers, expect_no_shift):
     ws = FakeSheet(headers)
     cols = ensure_mother_columns(ws)
     after = ws.headers()
 
     assert all(k in cols for k in MOTHER_CANONICAL), f"{name}: unresolved {set(MOTHER_CANONICAL) - set(cols)}"
-    if expect_stable:
-        assert after == list(headers), f"{name}: layout changed\n  was {headers}\n  now {after}"
+    if expect_no_shift:
+        assert len(after) == len(headers), f"{name}: column count changed {len(headers)} -> {len(after)}"
+        assert after[:13] == list(headers[:13]), f"{name}: named columns moved\n  {after[:13]}"
 
     # No duplicated logical column.
     keys = [mother_col_key(h) for h in after]
@@ -75,22 +84,30 @@ def check(name, headers, expect_stable):
     # Re-running a sync must be a no-op.
     ws2 = FakeSheet(after)
     cols2 = ensure_mother_columns(ws2)
-    assert ws2.headers() == after, f"{name}: second sync shifted columns\n  {after}\n  {ws2.headers()}"
+    assert ws2.headers() == after, f"{name}: second sync changed the headers"
     assert cols2 == cols, f"{name}: second sync remapped columns"
     print(f"  ok  {name}: loss cols at {cols['loss_tx1']},{cols['loss_tx2']},{cols['loss_tx3']}; "
           f"inverters start at {cols['pr_inv_1_1']}")
-    return cols
+    return cols, after
 
 
 def main():
     print("mother column resolution")
-    check("production Madre (already complete)", PRODUCTION, expect_stable=True)
-    cols = check("pristine template (original_format)", PRISTINE, expect_stable=False)
-    assert cols == {k: i for k, i in zip(MOTHER_CANONICAL, range(2, 14))} | \
-           {f"pr_inv_{t}_{i}": 13 + (t - 1) * 12 + i for t in (1, 2, 3) for i in range(1, 13)}, \
-           f"pristine template did not migrate to the canonical layout: {cols}"
+    cols, after = check("production Madre (already complete)", PRODUCTION, expect_no_shift=True)
+    assert cols == CANONICAL_COLS, f"production Madre remapped: {cols}"
 
-    # Header classification: "TX3 - Energy Loss" must never fall through to "energy".
+    # Per-inverter headers are renamed IN PLACE. Renaming rather than re-inserting
+    # matters: an unrecognised rename would read as a missing column on the next
+    # sync and shift the whole sheet.
+    assert after[13:] == INVERTERS_NEW, f"inverter headers not renamed: {after[13:16]}"
+    assert after[13] == "PR TX1-INV-1 (raw)" and after[-1] == "PR TX3-INV-12 (raw)"
+    print("  ok  per-inverter headers renamed in place, nothing shifted")
+
+    cols, _ = check("pristine template (original_format)", PRISTINE, expect_no_shift=False)
+    assert cols == CANONICAL_COLS, f"pristine template did not migrate to the canonical layout: {cols}"
+
+    # Header classification: "TX3 - Energy Loss" must never fall through to "energy",
+    # and a renamed inverter column must still classify.
     assert mother_col_key("TX3 - Energy Loss\nkW/H") == "loss_tx3"
     assert mother_col_key("Perdita Energia TX2") == "loss_tx2"
     assert mother_col_key("Energy (day)") == "energy"
@@ -98,6 +115,8 @@ def main():
     assert mother_col_key("PR Total") == "pr_total"
     assert mother_col_key("PR TX3-INV-12") == "pr_inv_3_12"
     assert mother_col_key("PR TX1-INV-10") == "pr_inv_1_10"
+    assert mother_col_key(mother_inv_header(3, 12)) == "pr_inv_3_12"
+    assert mother_col_key(mother_inv_header(1, 10)) == "pr_inv_1_10"
     assert mother_col_key("") is None and mother_col_key(None) is None
     print("  ok  header classification")
 
