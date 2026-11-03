@@ -1,8 +1,29 @@
-# PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v14.0)
+# PV Plant Performance Ratio (PR) Calculator & Dashboard - Mazara 01 (v16.0)
 
-## Novità Versione 14.0 (2026-09-01)
-- **Modalità Dati VCOM (Singolo Giorno e Mese Misto)**:
-  - **Sostituzione dati SCADA con VCOM**: Possibilità di calcolare il Performance Ratio direttamente dai file export VCOM (`Potenza_AC_*.csv`, `Potenza_attiva_*.csv`, `Produzione_energetica_*.csv`, `Energia_*.csv`) per i giorni con dati SCADA assenti o corrotti.
+## Novita Versione 16.0 (2026-11-03)
+- **Verifica Completezza Dati SCADA 24 ore**:
+  - Controlli pre-calcolo e a runtime che verificano che ogni file SCADA giornaliero contenga l'intera copertura di 24 ore: 96 intervalli da 15 minuti per POA (`TS_01/03_Weather`), contatore SATAC (`SATAC_Meter`) e regolazione attiva (`Regolazione_della_potenza_attiva`), nonche 1152 righe (96 intervalli x 12 inverters) per ciascuna cabina (`TS_01/02/03_Inverter`).
+  - Finestra di alert interattiva che segnala con precisione i giorni e i file parziali o interrotti, offrendo all'utente la scelta di interrompere per scaricare o convertire da VCOM anziche procedere silenziosamente con zeri.
+- **Parsing Numerico Robusto con Formati Europei**:
+  - `clean_float` e `clean_vcom_val` gestiscono nativamente numeri con separatore delle migliaia a punto e virgola decimale (es. `1.176,00` o `112.910,10`), prevenendo errori di conversione e azzeramenti di potenza e irraggiamento.
+- **Preservazione e Calcolo Corretto della Regolazione Potenza Attiva (Colonna N)**:
+  - `VCOM_to_SCADA.py` preserva i file reali di regolazione presenti nella cartella o nel backup, evitando di sovrascriverli con un valore forzato al 100%. Se generati sinteticamente, adotta il limite nominale contrattuale di Mazara 01 (87,6%).
+  - La Colonna N (`Potenza Attiva Limit Ratio`) riflette fedelmente il setpoint di rete (87,6%, 57,72%, 0%), consentendo il corretto calcolo delle perdite da curtailment (`curt_loss`) e da fermo e recupero (`ramp_loss`).
+- **Allineamento Continuo Contatore SATAC da VCOM**:
+  - Ricostruzione continua della serie temporale del contatore SATAC integrando l'energia giornaliera prodotta alla lettura cumulativa del giorno precedente, prevenendo salti o incongruenze.
+- **Sincronizzazione Completa File Madre via COM**:
+  - Aggiornamento forzato dei link esterni (`wb_mother.UpdateLink()`) e ricalcolo a doppio livello (`excel.Calculate()`, `ws_mother.Calculate()`), garantendo l'allineamento immediato dei 36 PR per inverter, delle perdite di cabina (TX1, TX2, TX3) e della disponibilita esterna.
+
+## Novita Versione 15.0 - 15.3 (2026-09-25)
+- **Riferimento POA delle perdite e colonne provvisorie**:
+  - Il modello energetico delle perdite adotta lo stesso POA selezionato del PR (Colonna I x 4000).
+  - Ridenominazione colonne per inverter nel file Madre in `PR TXn-INV-i (raw)`.
+  - Evidenziazione in giallo chiaro per PR SCADA e PR VCOM provvisori fino alla ricezione dei report fornitore.
+- **Risoluzione per nome delle colonne del file Madre**: risoluzione canonica tramite `scan_mother_columns` anziche indici fissi di colonna.
+
+## Novita Versione 14.0 (2026-09-01)
+- **Modalita Dati VCOM (Singolo Giorno e Mese Misto)**:
+  - **Sostituzione dati SCADA con VCOM**: Possibilita di calcolare il Performance Ratio direttamente dai file export VCOM (`Potenza_AC_*.csv`, `Potenza_attiva_*.csv`, `Produzione_energetica_*.csv`, `Energia_*.csv`) per i giorni con dati SCADA assenti o corrotti.
   - **Esecuzione Mese Misto (SCADA + VCOM)**: Permette di elaborare un mese intero combinando giorni SCADA e giorni VCOM (es. Giorno 1 SCADA, Giorno 2 SCADA, Giorno 3 VCOM, Giorno 4 SCADA...).
   - **Generazione completa 7/7 pseudo-SCADA**: Genera automaticamente tutti i file (`TS_01/03 Weather`, `TS_01/02/03 Inverter`, `SATAC Meter`, `Regolazione potenza attiva`).
   - **Finestra di Selezione Giorni VCOM**: Dialog interattivo con 31 caselle di controllo e funzione "Rileva cartelle vcom/" automatica.
@@ -10,11 +31,11 @@
 - **Pattern matching esteso**: Riconoscimento automatico dei file esportati con timestamp (es. `Performance_ratio_2026_07_31.csv`).
 - **Salvataggio protetto**: Gestione robusta dei lock di Excel, backup automatici e ricalcolo formule.
 
-> **Document generated:** 2026-05-15 · **Last updated:** 2026-08-07
+> **Document generated:** 2026-05-15 · **Last updated:** 2026-11-03
 
 A professional, high-performance toolkit for the **GET S.R.L.** Mazara 01 photovoltaic plant. It has three components:
 
-1. **PR Calculator (`PR_Calculator_GUI_v14.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
+1. **PR Calculator (`PR_Calculator_GUI_v16.py`)** — a Tkinter desktop app that automates the Performance Ratio (PR) calculation, producing both raw and compensated metrics by processing SCADA data and weather-station logs into Excel reports.
 2. **PR Dashboard (`pr_dashboard/`)** — a local FastAPI + React web app that reads the generated Excel reports into a SQLite cache and visualises PR, energy, losses and per-inverter performance across year / month / day views.
 3. **Data Completeness Checker (`Data_Completeness_Checker.py`)** — a small desktop app that audits the source archives *before* a calculation, reporting every day that is missing data in the Daily Reports (SCADA) or in the Tracker report.
 
@@ -73,7 +94,8 @@ pip install pandas numpy openpyxl pywin32 Pillow
 
 ```
 .
-├── PR_Calculator_GUI_v12.py     # Current calculator (Tkinter desktop app)
+├── PR_Calculator_GUI_v16.py     # Current calculator (Tkinter desktop app v16.0)
+├── PR_Calculator_GUI_v15.py     # Previous version (preserved)
 ├── VCOM_to_SCADA.py             # Converts 5-min VCOM CSVs -> 15-min pseudo-SCADA workbooks
 ├── Data_Completeness_Checker.py # Audits Daily Reports + Tracker archives for missing data
 ├── start_dashboard.py           # One-command launcher for the web dashboard
@@ -91,11 +113,11 @@ pip install pandas numpy openpyxl pywin32 Pillow
 1. **Launch the Application**:
    Run the GUI using Python:
    ```bash
-   python PR_Calculator_GUI_v12.py
+   python PR_Calculator_GUI_v16.py
    ```
    Or run the compiled executable:
    ```bash
-   "PR Calculator v12.exe"
+   "PR_Calculator_v16.exe"
    ```
 
 2. **Single Day Processing**:

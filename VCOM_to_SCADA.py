@@ -9,9 +9,16 @@ def clean_vcom_val(val):
         return 0.0
     if isinstance(val, (int, float)):
         return float(val)
-    val_str = str(val).strip().replace(',', '.')
+    s = str(val).strip()
+    if not s or s.lower() in ['x', 'nan', 'none', '-']:
+        return 0.0
+    # Handle European/Italian format: 1.234,56 or 1234,56
+    if ',' in s and '.' in s:
+        s = s.replace('.', '').replace(',', '.')
+    elif ',' in s:
+        s = s.replace(',', '.')
     try:
-        return float(val_str)
+        return float(s)
     except Exception:
         return 0.0
 
@@ -110,7 +117,7 @@ def convert_vcom_to_scada(vcom_folder, output_folder, date_str):
         f"_{dt.day:02d}.",
     ]
     
-    all_csvs = [f for f in os.listdir(vcom_folder) if f.lower().endswith(".csv")]
+    all_csvs = [f for f in os.listdir(vcom_folder) if f.lower().endswith(".csv") and not any(x in f.lower() for x in ["backup", "copia", "old", "bak"])]
     matched_csvs = [f for f in all_csvs if any(pat in f for pat in patterns)]
     if not matched_csvs:
         # Fallback to all csvs in single-day folders (e.g. '05/vcom/')
@@ -375,33 +382,51 @@ def convert_vcom_to_scada(vcom_folder, output_folder, date_str):
     # -------------------------------------------------------------
     # 4. PROCESS ACTIVE POWER REGULATION (Regolazione_della_potenza_attiva)
     # -------------------------------------------------------------
-    reg_col = None
-    if df_vcom_reg is not None:
-        for c in df_vcom_reg.columns:
-            c_low = c.lower()
-            if 'potenza attiva [%]' in c_low or 'valore nominale' in c_low or 'regolazione' in c_low:
-                reg_col = c
-                break
-                
-    reg_rows = []
-    for m in time_intervals_min:
-        t_str = f"{m//60:02d}:{m%60:02d}:00"
-        reg_val = 100.0
-        if df_vcom_reg is not None and reg_col:
-            sub = df_vcom_reg[df_vcom_reg['minutes'] == 0] if m == 0 else df_vcom_reg[df_vcom_reg['interval_15'] == m]
-            if len(sub) > 0:
-                v = sub[reg_col].mean()
-                if not pd.isna(v) and v > 0:
-                    reg_val = float(v)
-        reg_rows.append({
-            "Data": t_str,
-            "Unnamed: 1": f"{t_str}.000",
-            "Valore nominale potenza attiva [%]": reg_val
-        })
-        
-    df_reg_out = pd.DataFrame(reg_rows)
     reg_out_file = os.path.join(output_folder, f"Regolazione_della_potenza_attiva_{date_replaced}.xlsx")
-    df_reg_out.to_excel(reg_out_file, index=False)
+    existing_reg_valid = False
+    
+    # Check if a valid SCADA regulation file already exists in output_folder or output_folder/backup
+    for cand in [reg_out_file, os.path.join(output_folder, "backup", f"Regolazione_della_potenza_attiva_{date_replaced}.xlsx")]:
+        if os.path.exists(cand):
+            try:
+                df_ex = pd.read_excel(cand)
+                if len(df_ex) >= 96 and any('potenza attiva' in c.lower() or 'valore nominale' in c.lower() for c in df_ex.columns):
+                    if cand != reg_out_file:
+                        import shutil
+                        shutil.copy2(cand, reg_out_file)
+                    print(f"[{date_str}] Trovato file regolazione potenza attiva reale ({len(df_ex)} righe): mantenuto/ripristinato.")
+                    existing_reg_valid = True
+                    break
+            except Exception:
+                pass
+                
+    if not existing_reg_valid:
+        reg_col = None
+        if df_vcom_reg is not None:
+            for c in df_vcom_reg.columns:
+                c_low = c.lower()
+                if 'potenza attiva [%]' in c_low or 'valore nominale' in c_low or 'regolazione' in c_low:
+                    reg_col = c
+                    break
+                    
+        reg_rows = []
+        for m in time_intervals_min:
+            t_str = f"{m//60:02d}:{m%60:02d}:00"
+            reg_val = 87.6  # Mazara 01 nominal limitation is 87.6% (0.876)
+            if df_vcom_reg is not None and reg_col:
+                sub = df_vcom_reg[df_vcom_reg['minutes'] == 0] if m == 0 else df_vcom_reg[df_vcom_reg['interval_15'] == m]
+                if len(sub) > 0:
+                    v = sub[reg_col].mean()
+                    if not pd.isna(v) and v > 0:
+                        reg_val = float(v)
+            reg_rows.append({
+                "Data": t_str,
+                "Unnamed: 1": f"{t_str}.000",
+                "Valore nominale potenza attiva [%]": reg_val
+            })
+            
+        df_reg_out = pd.DataFrame(reg_rows)
+        df_reg_out.to_excel(reg_out_file, index=False)
     
     print(f"[{date_str}] Generazione pseudo-SCADA VCOM completata con successo (7/7 file creati in: {output_folder})")
 

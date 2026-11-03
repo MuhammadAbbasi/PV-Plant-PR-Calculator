@@ -2051,14 +2051,46 @@ class PRCalculatorGUI:
     ]
 
     def _missing_files_for_day(self, folder):
-        """Return the labels of the required SCADA files that are NOT present in `folder`.
-        An empty list means the day has all 7 files and can be processed."""
+        """Return the labels of the required SCADA files that are NOT present in `folder`,
+        or that do not cover the full 24 hours (96 15-minute intervals).
+        An empty list means the day has all 7 files complete and can be processed."""
         if not os.path.isdir(folder):
             return [label for label, _ in self.REQUIRED_DAY_FILES]
         missing = []
         for label, patterns in self.REQUIRED_DAY_FILES:
-            if not self.find_file_by_patterns(folder, patterns):
-                missing.append(label)
+            f = self.find_file_by_patterns(folder, patterns)
+            if not f:
+                missing.append(f"{label} (file assente)")
+            else:
+                try:
+                    f_name = os.path.basename(f).lower()
+                    if "weather" in f_name:
+                        df_chk = pd.read_excel(f)
+                        c2 = df_chk['Colonna2'] if 'Colonna2' in df_chk.columns else (df_chk.iloc[:, 1] if df_chk.shape[1] > 1 else None)
+                        if c2 is not None:
+                            cnt = int((c2.astype(str).str.strip() == "POA").sum())
+                            if cnt < 96:
+                                missing.append(f"{label} (incompleto: {cnt}/96 intervalli)")
+                    elif "satac" in f_name or "meter" in f_name:
+                        df_chk = pd.read_excel(f)
+                        c2 = df_chk['Colonna2'] if 'Colonna2' in df_chk.columns else (df_chk.iloc[:, 1] if df_chk.shape[1] > 1 else None)
+                        if c2 is not None:
+                            cnt = int(c2.astype(str).str.strip().str.startswith("Energia attiva prod").sum())
+                            if cnt < 96:
+                                missing.append(f"{label} (incompleto: {cnt}/96 intervalli)")
+                    elif "inverter" in f_name:
+                        df_chk = pd.read_excel(f)
+                        c2 = df_chk['Colonna2'] if 'Colonna2' in df_chk.columns else (df_chk.iloc[:, 1] if df_chk.shape[1] > 1 else None)
+                        if c2 is not None:
+                            cnt = int((c2.astype(str).str.strip() == "Potenza attiva").sum())
+                            if cnt < 1152:
+                                missing.append(f"{label} (incompleto: {cnt // 12}/96 intervalli)")
+                    elif "potenza_attiva" in f_name or "regolazione" in f_name:
+                        df_chk = pd.read_excel(f)
+                        if len(df_chk) < 96:
+                            missing.append(f"{label} (incompleto: {len(df_chk)}/96 intervalli)")
+                except Exception as ex_chk:
+                    missing.append(f"{label} (errore verifica: {ex_chk})")
         return missing
 
     def _ask_yes_no_on_gui(self, title, message):
@@ -2728,13 +2760,44 @@ class PRCalculatorGUI:
         df_pa2 = df_i2[df_i2['Colonna2'].astype(str).str.strip() == "Potenza attiva"].copy()
         df_pa3 = df_i3[df_i3['Colonna2'].astype(str).str.strip() == "Potenza attiva"].copy()
         
+        # Alert if SCADA data does not have full 24 hours of data
+        incomplete_details = []
+        if len(df_poa1) < 96: incomplete_details.append(f"TS1 Weather Station: solo {len(df_poa1)}/96 intervalli POA")
+        if len(df_poa3) < 96: incomplete_details.append(f"TS3 Weather Station: solo {len(df_poa3)}/96 intervalli POA")
+        if len(df_meter) < 96: incomplete_details.append(f"SATAC Meter: solo {len(df_meter)}/96 intervalli Energia")
+        if len(df_pa1) < 1152: incomplete_details.append(f"TS1 Inverters: solo {len(df_pa1)//12}/96 intervalli")
+        if len(df_pa2) < 1152: incomplete_details.append(f"TS2 Inverters: solo {len(df_pa2)//12}/96 intervalli")
+        if len(df_pa3) < 1152: incomplete_details.append(f"TS3 Inverters: solo {len(df_pa3)//12}/96 intervalli")
+        if len(df_reg) < 96: incomplete_details.append(f"Active Power Regulation: solo {len(df_reg)}/96 intervalli")
+        if incomplete_details:
+            msg = f"I file SCADA per il giorno {date_str} non hanno i dati completi delle 24 ore (mancano alcuni intervalli):\n"
+            for idet in incomplete_details:
+                msg += f"   • {idet}\n"
+            print(f">>> ATTENZIONE [{date_str}]: {msg}")
+            if hasattr(self, '_ask_yes_no_on_gui'):
+                proceed = self._ask_yes_no_on_gui(
+                    "Dati SCADA Incompleti (Meno di 24h)",
+                    f"Attenzione! I file SCADA per il giorno {date_str} non contengono le 24 ore complete:\n\n"
+                    + "\n".join(f"• {idet}" for idet in incomplete_details) +
+                    "\n\nI dati mancanti verranno posti a 0 (o interpolati), falsando il PR.\n"
+                    "Vuoi procedere comunque con il calcolo su dati parziali?\n\n"
+                    "[Sì] = Calcola comunque\n[No] = Annulla (consigliato: usa dati VCOM)"
+                )
+                if not proceed:
+                    raise RuntimeError(f"Calcolo annullato per dati SCADA incompleti ({date_str}).")
+
         times = pd.date_range("00:00:00", "23:45:00", freq="15min").time
         time_strs = [t.strftime("%H:%M:%S") for t in times]
         
         def clean_float(val):
             if val is None or pd.isna(val): return 0.0
             if isinstance(val, (int, float)): return float(val)
-            s = str(val).strip().replace(',', '.').rstrip('.')
+            s = str(val).strip()
+            if ',' in s and '.' in s:
+                s = s.replace('.', '').replace(',', '.')
+            elif ',' in s:
+                s = s.replace(',', '.')
+            s = s.rstrip('.')
             try: return float(s)
             except Exception: return 0.0
 
@@ -4059,9 +4122,17 @@ class PRCalculatorGUI:
                             mark_pr_placeholder(ws_mother, r, vcol, vsrc, False)
                         
             try:
+                links = wb_mother.LinkSources(1)  # xlExcelLinks
+                if links:
+                    for link in links:
+                        try:
+                            wb_mother.UpdateLink(Name=link, Type=1)
+                        except Exception:
+                            pass
                 excel.Calculation = -4105  # xlCalculationAutomatic
                 excel.CalculateBeforeSave = True
-                wb_mother.Calculate()
+                excel.Calculate()
+                ws_mother.Calculate()
             except Exception:
                 pass
                 
